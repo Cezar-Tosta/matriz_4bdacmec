@@ -245,7 +245,7 @@
         const c = cont[f.id + "|" + d.id];
         if (!c) { html += `<td class="cel zero"></td>`; return; }
         const a = 0.15 + 0.7 * c.n / max;
-        html += `<td class="cel ${c.p ? "p" : ""}" data-fr="${f.id}" data-dia="${d.id}" style="background:rgba(79,93,47,${a.toFixed(2)});color:${a > .5 ? "#fff" : "inherit"}" title="${esc(c.t.join("\n"))}${c.p ? `\n— ${c.p} PMS` : ""}">${c.n}</td>`;
+        html += `<td class="cel ${c.p ? "p" : ""}" data-fr="${f.id}" data-dia="${d.id}" style="background:rgba(90,26,42,${a.toFixed(2)});color:${a > .5 ? "#fff" : "inherit"}" title="${esc(c.t.join("\n"))}${c.p ? `\n— ${c.p} PMS` : ""}">${c.n}</td>`;
       });
       html += `</tr>`;
     });

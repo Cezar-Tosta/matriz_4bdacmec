@@ -1,6 +1,6 @@
 :root{
   --bg:#f4f3ee; --painel:#fff; --tinta:#1f2421; --suave:#6b716c; --linha:#dedbd2;
-  --oliva:#4f5d2f; --oliva-cl:#e7ead9;
+  --oliva:#5a1a2a; --oliva-cl:#f3e4e8;
   --fadst:#2563a8; --forop:#c0392b; --direx:#c98a12; --pms:#7b2cbf;
   --raio:10px; --sombra:0 1px 3px rgba(0,0,0,.08),0 4px 14px rgba(0,0,0,.06);
 }
@@ -15,6 +15,8 @@ input[type=search]{width:100%;padding:8px 10px;border:1px solid var(--linha);bor
 
 body{display:flex;flex-direction:column}
 .topo{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--oliva);color:#fff}
+.marca{display:flex;align-items:center;gap:10px}
+.marca .brasao{height:44px;width:auto;flex-shrink:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}
 .marca strong{display:block;font-size:16px;letter-spacing:.2px}
 .marca span{font-size:12px;opacity:.85}
 .visoes{display:flex;background:rgba(255,255,255,.15);border-radius:9px;padding:3px}
@@ -91,7 +93,7 @@ mark{background:#ffe58a;padding:0 1px;border-radius:2px}
 .mk.pc{background:#fff !important;border:4px solid var(--cor)}
 .mk.sel{box-shadow:0 0 0 4px #ffd84d}
 .mk-n{position:absolute;top:-8px;right:-10px;background:#111;color:#fff;font-size:9px;border-radius:9px;padding:0 4px;line-height:14px}
-.loc-ic{background:rgba(79,93,47,.14);border:2px dashed var(--oliva);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--oliva);font-weight:700;font-size:11px;text-align:center;line-height:1.1}
+.loc-ic{background:rgba(90,26,42,.14);border:2px dashed var(--oliva);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--oliva);font-weight:700;font-size:11px;text-align:center;line-height:1.1}
 .loc-ic small{font-weight:600;font-size:9px;color:var(--tinta)}
 .leaflet-popup-content{margin:10px 12px;max-height:280px;overflow-y:auto;font-size:12px}
 .pop h5{margin:0 0 4px;font-size:13px}
@@ -105,7 +107,7 @@ mark{background:#ffe58a;padding:0 1px;border-radius:2px}
 .sw.fadst{background:var(--fadst)} .sw.forop{background:var(--forop)} .sw.direx{background:var(--direx)}
 .sw.pms{background:var(--pms);border-radius:2px;transform:rotate(45deg)}
 .sw.pcpos{border:3px solid var(--fadst);background:#fff}
-.sw.aprox{border:2px dashed var(--oliva);background:rgba(79,93,47,.14)}
+.sw.aprox{border:2px dashed var(--oliva);background:rgba(90,26,42,.14)}
 
 /* matriz */
 .matriz{position:absolute;inset:0;overflow:auto;background:var(--bg);padding:10px}
