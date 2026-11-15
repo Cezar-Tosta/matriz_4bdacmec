@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StoryMap – Matriz de Sincronização 4ª Bda C Mec</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topo">
+  <div class="marca">
+    <strong>StoryMap · Matriz de Sincronização</strong>
+    <span>4ª Bda C Mec · 05 a 29 NOV</span>
+  </div>
+  <div class="visoes" role="tablist">
+    <button class="ativo" data-visao="mapa">Mapa</button>
+    <button data-visao="matriz">Matriz</button>
+  </div>
+</header>
+
+<section class="linha-tempo">
+  <div class="controles-tempo">
+    <button id="btnAnt" title="Dia anterior">◀</button>
+    <button id="btnPlay" title="Reproduzir a história">▶ Reproduzir</button>
+    <button id="btnProx" title="Próximo dia">▶</button>
+    <button id="btnTodos" class="secundario" title="Ver todos os dias juntos">Todos os dias</button>
+  </div>
+  <div id="dias" class="dias"></div>
+</section>
+
+<main class="corpo">
+  <aside class="lateral">
+    <details class="filtros" open>
+      <summary>Filtros <span id="contagem" class="contagem"></span></summary>
+      <input id="busca" type="search" placeholder="Buscar texto (ex.: ETA, ponte, PMS 3.2, drone)…">
+      <div class="grupo"><h4>Setor</h4><div id="fSetor" class="chips"></div></div>
+      <div class="grupo"><h4>Partido</h4><div id="fPartido" class="chips"></div></div>
+      <div class="grupo"><h4>Tipo</h4>
+        <div class="chips" id="fTipo">
+          <label><input type="radio" name="tipo" value="all" checked> Tudo</label>
+          <label><input type="radio" name="tipo" value="pms"> Só PMS</label>
+          <label><input type="radio" name="tipo" value="nopms"> Sem PMS</label>
+        </div>
+      </div>
+      <div class="grupo"><h4>Turno</h4><div id="fTurno" class="chips"></div></div>
+      <div class="grupo"><h4>Frações <button id="limparFr" class="link">limpar</button></h4>
+        <input id="buscaFr" type="search" placeholder="Filtrar lista de frações…">
+        <div id="fFracao" class="lista-fr"></div>
+      </div>
+      <button id="limparTudo" class="secundario largura">Limpar todos os filtros</button>
+    </details>
+    <div id="capitulo" class="capitulo"></div>
+    <div id="eventos" class="eventos"></div>
+  </aside>
+
+  <section class="palco">
+    <div id="mapa"></div>
+    <div id="matriz" class="matriz oculto"></div>
+    <div class="legenda">
+      <div><i class="sw fadst"></i>F Adst</div>
+      <div><i class="sw forop"></i>FOROP</div>
+      <div><i class="sw direx"></i>DIREX</div>
+      <div><i class="sw pms"></i>PMS</div>
+      <div><i class="sw pcpos"></i>Posição do PC</div>
+      <div><i class="sw aprox"></i>Localidade (aprox.)</div>
+    </div>
+  </section>
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
