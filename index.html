@@ -27,7 +27,7 @@
 <section class="linha-tempo">
   <div class="controles-tempo">
     <button id="btnAnt" title="Dia anterior">◀</button>
-    <button id="btnPlay" title="Reproduzir a história">▶ Reproduzir</button>
+    <button id="btnPlay" title="Reproduzir a história">▶<span class="rot"> Reproduzir</span></button>
     <button id="btnProx" title="Próximo dia">▶</button>
     <button id="btnTodos" class="secundario" title="Ver todos os dias juntos">Todos os dias</button>
   </div>
@@ -46,6 +46,7 @@
           <label><input type="radio" name="tipo" value="all" checked> Tudo</label>
           <label><input type="radio" name="tipo" value="pms"> Só PMS</label>
           <label><input type="radio" name="tipo" value="nopms"> Sem PMS</label>
+          <label><input type="radio" name="tipo" value="exp"> Só Exp Dout</label>
         </div>
       </div>
       <div class="grupo"><h4>Turno</h4><div id="fTurno" class="chips"></div></div>
@@ -67,6 +68,7 @@
       <div><i class="sw forop"></i>FOROP</div>
       <div><i class="sw direx"></i>DIREX</div>
       <div><i class="sw pms"></i>PMS</div>
+      <div><i class="sw exp"></i>Exp Dout</div>
       <div><i class="sw pcpos"></i>Posição do PC</div>
       <div><i class="sw aprox"></i>Localidade (aprox.)</div>
     </div>
@@ -75,6 +77,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="data.js"></script>
+<script src="extras.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
