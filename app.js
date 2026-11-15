@@ -9,13 +9,12 @@
     if (!f) { console.warn("extras.js: fração não encontrada:", x.fracao); return; }
     const coords = x.coords || [];
     const e = { fid: f.id, dia: x.dia, txt: x.txt, pc: null, pms: x.pms || [], turno: x.turno || [], coords,
-      local: x.local || null, prec: coords.length ? "exata" : x.local ? "aprox" : null, cat: x.cat || "" };
+      local: x.local || null, prec: coords.length ? "exata" : x.local ? "aprox" : null };
     let pos = -1;
     M.eventos.forEach((o, i) => { if (o.fid === f.id && o.dia === x.dia) pos = i; });
     if (pos < 0) M.eventos.forEach((o, i) => { if (o.fid === f.id) pos = i; });
     pos < 0 ? M.eventos.push(e) : M.eventos.splice(pos + 1, 0, e);
   });
-  M.eventos.forEach(e => { e.exp = e.cat === "Exp Dout" || /\bexp\.?\s*dout\b/i.test(e.txt); });
   const estreito = () => matchMedia("(max-width:820px)").matches;
   const DIAS = M.dias;
   const idxD = DIAS.findIndex(d => d.rel === "D");
@@ -34,7 +33,6 @@
     if (/APRONTO OPERACIONAL/.test(tx)) d.marcos.push("Apronto Op");
     if (d.marco) d.marcos.push(d.marco.replace("VISITA OPERACIONAL", "Visita Op"));
     if (/\bAPA\b/.test(tx) && /Participar da APA em Campo Grande/i.test(tx)) d.marcos.push("APA");
-    if (M.eventos.some(e => e.dia === d.id && e.exp)) d.marcos.push("Exp Dout");
   });
 
   // ---------- estado ----------
@@ -57,7 +55,6 @@
     if (S.fracoes.size && !S.fracoes.has(f.id)) return false;
     if (S.tipo === "pms" && !e.pms.length) return false;
     if (S.tipo === "nopms" && e.pms.length) return false;
-    if (S.tipo === "exp" && !e.exp) return false;
     if (S.turnos.size && !e.turno.some(t => S.turnos.has(t))) return false;
     if (S.q) { const termos = norm(S.q).split(/\s+/).filter(Boolean); if (!termos.every(t => e.n.includes(t))) return false; }
     return true;
@@ -118,7 +115,7 @@
     lista.forEach(e => (porFr[e.fid] ||= []).push(e));
     return `<div class="pop"><h5>${esc(titulo)}</h5>` + Object.entries(porFr).map(([fid, evs]) =>
       `<b>${esc(FR[fid].nome)}</b> <span class="pc">${esc(FR[fid].partido)}</span><ul>` +
-      evs.map(e => `<li>${S.dia === "ALL" ? `<span class="tag dia">${esc(DIA[e.dia].data)}</span> ` : ""}${e.exp ? `<span class="tag exp">Exp Dout</span> ` : ""}${esc(e.txt)}</li>`).join("") + "</ul>"
+      evs.map(e => `<li>${S.dia === "ALL" ? `<span class="tag dia">${esc(DIA[e.dia].data)}</span> ` : ""}${esc(e.txt)}</li>`).join("") + "</ul>"
     ).join("") + (lista[0].pc && lista[0].prec === "pc" ? `<div class="pc">${esc(lista[0].pc)}</div>` : "") + "</div>";
   }
 
@@ -142,9 +139,8 @@
     const popW = Math.min(380, innerWidth - 60);
     locais.forEach((lista, nome) => {
       const ll = M.locais[nome], n = lista.length, tam = Math.min(estreito() ? 54 : 70, (estreito() ? 24 : 30) + Math.sqrt(n) * 5);
-      const temExp = lista.some(e => e.exp);
       const mk = L.marker(ll, {
-        icon: L.divIcon({ className: "", html: `<div class="loc-ic ${temExp ? "exp" : ""}" style="width:${tam}px;height:${tam}px">${n}<small>${esc(nome)}</small>${temExp ? `<span class="loc-exp" title="Exp Dout">EXP</span>` : ""}</div>`, iconSize: [tam, tam], iconAnchor: [tam / 2, tam / 2] }),
+        icon: L.divIcon({ className: "", html: `<div class="loc-ic" style="width:${tam}px;height:${tam}px">${n}<small>${esc(nome)}</small></div>`, iconSize: [tam, tam], iconAnchor: [tam / 2, tam / 2] }),
         zIndexOffset: -500,
       }).bindPopup(popupHtml(lista, `${nome} · localização aproximada`), { maxWidth: popW }).addTo(camada);
       lista.forEach(e => marcadorDoEvento.set(e.id, mk));
@@ -153,13 +149,13 @@
     // pontos exatos / PC
     pontos.forEach((lista, k) => {
       const e0 = lista[0], cor = COR[partKey(FR[e0.fid].partido)] || "#555";
-      const temPms = lista.some(e => e.pms.length), temExp = lista.some(e => e.exp), ePc = k.endsWith("|pc");
-      const cls = `mk ${temPms ? "pms" : ""} ${temExp && !temPms ? "exp" : ""} ${ePc ? "pc" : ""} ${lista.some(e => e.id === S.foco) ? "sel" : ""}`;
-      const bg = temPms ? "var(--pms)" : temExp ? "var(--exp)" : cor;
+      const temPms = lista.some(e => e.pms.length), ePc = k.endsWith("|pc");
+      const cls = `mk ${temPms ? "pms" : ""} ${ePc ? "pc" : ""} ${lista.some(e => e.id === S.foco) ? "sel" : ""}`;
+      const bg = temPms ? "var(--pms)" : cor;
       const mk = L.marker(e0.coords[0], {
         icon: L.divIcon({ className: "", html: `<div class="${cls}" style="background:${bg};--cor:${cor}"></div>${lista.length > 1 ? `<span class="mk-n">${lista.length}</span>` : ""}`, iconSize: [16, 16], iconAnchor: [8, 8] }),
-        zIndexOffset: temPms || temExp ? 500 : 0,
-      }).bindPopup(popupHtml(lista, ePc ? "Posição do PC" : (temPms ? "PMS · " + lista.flatMap(e => e.pms).map(p => "PMS " + p).filter((v, i, a) => a.indexOf(v) === i).join(", ") : temExp ? "Exp Dout" : "Coordenada informada")), { maxWidth: popW })
+        zIndexOffset: temPms ? 500 : 0,
+      }).bindPopup(popupHtml(lista, ePc ? "Posição do PC" : (temPms ? "PMS · " + lista.flatMap(e => e.pms).map(p => "PMS " + p).filter((v, i, a) => a.indexOf(v) === i).join(", ") : "Coordenada informada")), { maxWidth: popW })
         .addTo(camada);
       mk.on("click", () => focar(lista[0].id, false));
       lista.forEach(e => marcadorDoEvento.set(e.id, mk));
@@ -197,7 +193,6 @@
     const loc = e.prec === "exata" ? "📍 coordenada" : e.prec === "pc" ? "📍 PC" : e.local ? `≈ ${e.local}` : "";
     return `<button class="ev ${S.foco === e.id ? "foco" : ""}" data-ev="${e.id}">${realcar(e.txt)}
       <span class="meta">${S.dia === "ALL" ? `<span class="tag dia">${esc(DIA[e.dia].data)}</span>` : ""}
-      ${e.exp ? `<span class="tag exp">Exp Dout</span>` : ""}
       ${e.pms.map(p => `<span class="tag pms">PMS ${esc(p)}</span>`).join("")}
       ${e.turno.map(t => `<span class="tag">${t}</span>`).join("")}
       ${loc ? `<span class="tag loc">${esc(loc)}</span>` : ""}</span></button>`;
@@ -206,16 +201,14 @@
     const d = DIA[S.dia];
     const nPms = evs.filter(e => e.pms.length).length;
     const nFr = new Set(evs.map(e => e.fid)).size;
-    const nExp = evs.filter(e => e.exp).length;
-    const destaques = [...evs.filter(e => e.exp), ...evs.filter(e => e.pms.length && !e.exp)].slice(0, 3);
-    const kpis = `<div class="kpis"><div><b>${evs.length}</b>eventos</div><div><b>${nPms}</b>PMS</div>`
-      + (nExp ? `<div class="k-exp"><b>${nExp}</b>Exp Dout</div>` : "") + `<div><b>${nFr}</b>frações</div></div>`;
+    const destaques = evs.filter(e => e.pms.length).slice(0, 3);
+    const kpis = `<div class="kpis"><div><b>${evs.length}</b>eventos</div><div><b>${nPms}</b>PMS</div>` + `<div><b>${nFr}</b>frações</div></div>`;
     $("#capitulo").innerHTML = S.dia === "ALL"
       ? `<h2>Todos os dias</h2><div class="sub">${esc(DIAS[0].data)} a ${esc(DIAS.at(-1).data)}</div>` + kpis
       : `<h2>${esc(d.data)} <small style="font-weight:400;color:var(--suave)">${esc(d.semana)} · ${esc(d.relCalc)}</small></h2>`
         + `<div class="sub">${d.marcos.length ? esc(d.marcos.join(" · ")) : "Dia " + (d.i + 1) + " de " + DIAS.length}</div>`
         + kpis
-        + destaques.map(e => `<div class="destaque ${e.exp ? "exp" : ""}">${e.exp ? `<span class="tag exp">Exp Dout</span> ` : ""}<b>${esc(FR[e.fid].nome)}</b> — ${esc(e.txt.length > 140 ? e.txt.slice(0, 140) + "…" : e.txt)}</div>`).join("");
+        + destaques.map(e => `<div class="destaque"><b>${esc(FR[e.fid].nome)}</b> — ${esc(e.txt.length > 140 ? e.txt.slice(0, 140) + "…" : e.txt)}</div>`).join("");
     $("#contagem").textContent = `${evs.length} de ${M.eventos.filter(e => S.dia === "ALL" || e.dia === S.dia).length} no período`;
 
     if (!evs.length) { $("#eventos").innerHTML = `<div class="vazio-msg">Nenhum evento com esses filtros.</div>`; return; }
@@ -256,7 +249,7 @@
   function desenharMatriz() {
     const frs = M.fracoes.filter(f => (!S.setores.size || S.setores.has(f.setor)) && (!S.partidos.size || S.partidos.has(f.partido)) && (!S.fracoes.size || S.fracoes.has(f.id)));
     const cont = {};
-    M.eventos.forEach(e => { if (passa(e, true)) { const k = e.fid + "|" + e.dia; (cont[k] ||= { n: 0, p: 0, x: 0, t: [] }); cont[k].n++; if (e.pms.length) cont[k].p++; if (e.exp) cont[k].x++; if (cont[k].t.length < 4) cont[k].t.push(e.txt.slice(0, 90)); } });
+    M.eventos.forEach(e => { if (passa(e, true)) { const k = e.fid + "|" + e.dia; (cont[k] ||= { n: 0, p: 0, t: [] }); cont[k].n++; if (e.pms.length) cont[k].p++; if (cont[k].t.length < 4) cont[k].t.push(e.txt.slice(0, 90)); } });
     const max = Math.max(1, ...Object.values(cont).map(c => c.n));
     let html = `<table><thead><tr><th></th>${DIAS.map(d => `<th class="${S.dia === d.id ? "dsel" : ""}">${esc(d.data)}<br><small>${esc(d.relCalc)}</small></th>`).join("")}</tr></thead><tbody>`;
     let ult = null;
@@ -267,7 +260,7 @@
         const c = cont[f.id + "|" + d.id];
         if (!c) { html += `<td class="cel zero"></td>`; return; }
         const a = 0.15 + 0.7 * c.n / max;
-        html += `<td class="cel ${c.p ? "p" : ""} ${c.x ? "x" : ""}" data-fr="${f.id}" data-dia="${d.id}" style="background:rgba(90,26,42,${a.toFixed(2)});color:${a > .5 ? "#fff" : "inherit"}" title="${esc(c.t.join("\n"))}${c.p ? `\n— ${c.p} PMS` : ""}${c.x ? `\n— ${c.x} Exp Dout` : ""}">${c.n}</td>`;
+        html += `<td class="cel ${c.p ? "p" : ""}" data-fr="${f.id}" data-dia="${d.id}" style="background:rgba(90,26,42,${a.toFixed(2)});color:${a > .5 ? "#fff" : "inherit"}" title="${esc(c.t.join("\n"))}${c.p ? `\n— ${c.p} PMS` : ""}">${c.n}</td>`;
       });
       html += `</tr>`;
     });
