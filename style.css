@@ -283,3 +283,6 @@ button.primario{background:var(--oliva);color:#fff;border-color:var(--oliva)}
 .chat-entrada button{min-width:44px}
 @media (min-width:821px){ body.com-chat .corpo{margin-right:min(420px,100vw)} }
 @media (max-width:820px){ .chat{left:0;width:auto;border-left:0} }
+.msg a.maplink{display:inline-block;color:var(--oliva);font-weight:600;text-decoration:none;border:1px solid var(--oliva);border-radius:999px;padding:0 8px;margin:1px 0;background:var(--painel);font-size:12px;line-height:1.6}
+.msg a.maplink:hover,.msg a.maplink.ativo{background:var(--oliva);color:#fff}
+.msg a.maplink svg{width:11px;height:11px;fill:currentColor;vertical-align:-1px;margin-right:3px}

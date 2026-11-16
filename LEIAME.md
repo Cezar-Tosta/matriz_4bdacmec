@@ -42,4 +42,7 @@ quando a informação não existe, sem completar lacunas nem usar conhecimento e
 - Modelo padrão: `gpt-5-nano` (o mais econômico); pode trocar no cadastro. A URL base aceita qualquer API compatível
   com `/chat/completions`.
 - A matriz inteira (≈55 mil tokens) vai como contexto a cada pergunta – cerca de US$ 0,003 por pergunta no gpt-5-nano.
+- As respostas trazem botões **🗺** que exibem no mapa o que foi pedido (um evento, um dia, uma ou mais OM, só PMS ou uma
+  localidade). No celular, o chat fecha ao clicar para mostrar o mapa.
+- O nome do modelo não aparece no Assistente; o campo Modelo no cadastro é opcional (em branco = padrão).
 - Precisa de internet. 🗑 inicia nova conversa.

@@ -615,6 +615,36 @@
     if (S.visao === "matriz") desenharMatriz();
     filtroAtivo();
   }
+  // ---------- API para o assistente (chat.js): links "mapa:" nas respostas ----------
+  // o = { evento: id, dia: "20NOV" | "ALL", om: ["f3", ...], pms: true, local: "Aquidauana" }
+  function limparFiltros() {
+    [S.setores, S.partidos, S.turnos, S.fracoes].forEach(s => s.clear()); S.tipo = "all"; S.q = "";
+    document.querySelectorAll(".filtros input[type=checkbox]").forEach(i => i.checked = false);
+    document.querySelector('#fTipo input[value=all]').checked = true; $("#busca").value = ""; $("#buscaFr").value = "";
+  }
+  window.MATRIZ_APP = {
+    mostrar(o = {}) {
+      const ev = o.evento != null && o.evento !== "" ? M.eventos[+o.evento] : null;
+      if (o.evento != null && o.evento !== "" && !ev) { aviso("Evento não encontrado na matriz."); return; }
+      const oms = (o.om || []).filter(id => FR[id]);
+      const local = o.local && M.locais[o.local] ? o.local : null;
+      clearInterval(timer); timer = null; $("#btnPlay").innerHTML = `▶<span class="rot"> Reproduzir</span>`;
+      limparFiltros();
+      oms.forEach(id => S.fracoes.add(id));
+      if (o.pms) { S.tipo = "pms"; document.querySelector('#fTipo input[value=pms]').checked = true; }
+      S.dia = ev ? ev.dia : o.dia === "ALL" || DIA[o.dia] ? o.dia : oms.length || o.pms ? "ALL" : S.dia;
+      S.foco = null;
+      if (S.visao !== "mapa") trocarVisao("mapa");
+      render(!ev && !local);
+      if (ev) setTimeout(() => {
+        focar(ev.id, true);
+        if (!marcadorDoEvento.get(ev.id)) aviso("Este evento não tem localização no mapa; ele está destacado na lista.");
+      }, 80);
+      else if (local) mapa.flyTo(M.locais[local], 11, { duration: .8 });
+      else if (!M.eventos.some(e => passa(e) && (e.coords.length || (e.local && M.locais[e.local])))) aviso("Nada com localização para exibir no mapa com esta seleção.");
+    },
+  };
+
   // no celular: filtros recolhidos e zoom por gesto (libera espaço no mapa)
   if (estreito()) { $(".filtros").open = false; mapa.zoomControl.remove(); }
   addEventListener("resize", () => mapa.invalidateSize());
