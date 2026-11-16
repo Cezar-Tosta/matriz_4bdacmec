@@ -10,7 +10,7 @@ Sistema web estático (HTML + CSS + JS puro; mapa com Leaflet via CDN).
 - `chat.js` – assistente (chat) que responde perguntas sobre a matriz usando a API da OpenAI
 - `extras.js` – eventos inseridos à mão; não é sobrescrito pelo script
 - `atualizar_dados.py` – regenera o `data.js` a partir da planilha
-- `img/` – brasão da 4ª Bda C Mec (cabeçalho e favicon)
+- `img/` – brasão da 4ª Bda C Mec (cabeçalho e favicon) e `camuflagem.svg` (estampa do cabeçalho e dos botões principais)
 
 ## Como abrir
 Abra `index.html` no navegador (precisa de internet para o Leaflet e para os mapas de fundo).

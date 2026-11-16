@@ -311,7 +311,7 @@
         const c = cont[f.id + "|" + d.id];
         if (!c) { html += `<td class="cel zero"></td>`; return; }
         const a = 0.15 + 0.7 * c.n / max;
-        html += `<td class="cel ${c.p ? "p" : ""}" data-fr="${f.id}" data-dia="${d.id}" style="background:rgba(90,26,42,${a.toFixed(2)});color:${a > .5 ? "#fff" : "inherit"}" title="${esc(c.t.join("\n"))}${c.p ? `\n— ${c.p} PMS` : ""}">${c.n}</td>`;
+        html += `<td class="cel ${c.p ? "p" : ""}" data-fr="${f.id}" data-dia="${d.id}" style="background:rgba(63,74,43,${a.toFixed(2)});color:${a > .5 ? "#fff" : "inherit"}" title="${esc(c.t.join("\n"))}${c.p ? `\n— ${c.p} PMS` : ""}">${c.n}</td>`;
       });
       html += `</tr>`;
     });
@@ -448,7 +448,7 @@
     try { const im = $(".marca .brasao"), c = document.createElement("canvas"); c.width = c.height = 128; c.getContext("2d").drawImage(im, 0, 0, 128, 128); logo = c.toDataURL("image/png"); } catch { }
     const filtros = descreverFiltros();
     const cab = () => {
-      doc.setFillColor(90, 26, 42); doc.rect(0, 0, W, 16, "F");
+      doc.setFillColor(63, 74, 43); doc.rect(0, 0, W, 16, "F");
       if (logo) doc.addImage(logo, "PNG", mg, 2, 12, 12);
       doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(13);
       doc.text(pdfTxt(TITULO), mg + (logo ? 15 : 0), 8.5);
@@ -473,7 +473,7 @@
       head: [["Dia", "Setor", "OM", "Partido", "Descrição", "Turno", "PMS", "Localização"]],
       body: linhas.map(r => [r.dia, r.setor, r.om, r.partido, r.txt, r.turno, r.pms, r.local].map(pdfTxt)),
       styles: { font: "helvetica", fontSize: 7.5, cellPadding: 1.4, valign: "top", lineColor: [222, 219, 210], lineWidth: .15, overflow: "linebreak" },
-      headStyles: { fillColor: [90, 26, 42], textColor: 255, fontStyle: "bold", fontSize: 8 },
+      headStyles: { fillColor: [63, 74, 43], textColor: 255, fontStyle: "bold", fontSize: 8 },
       alternateRowStyles: { fillColor: [248, 247, 243] },
       columnStyles: { 0: { cellWidth: 21 }, 1: { cellWidth: 48 }, 2: { cellWidth: 34, fontStyle: "bold" }, 3: { cellWidth: 15 },
         4: { cellWidth: "auto" }, 5: { cellWidth: 12, halign: "center" }, 6: { cellWidth: 14, halign: "center" }, 7: { cellWidth: 36 } },
@@ -499,8 +499,8 @@
     const w = open("", "_blank"); if (!w) { aviso("Permita pop-ups para gerar o PDF"); return; }
     const l = linhasTabela(evs);
     w.document.write(`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${esc(TITULO)}</title><style>
-      @page{size:A4 landscape;margin:10mm}body{font:10px system-ui,sans-serif;color:#111}h1{font-size:15px;margin:0;color:#5a1a2a}
-      .f{margin:4px 0 8px}table{border-collapse:collapse;width:100%}th{background:#5a1a2a;color:#fff;text-align:left}
+      @page{size:A4 landscape;margin:10mm}body{font:10px system-ui,sans-serif;color:#111}h1{font-size:15px;margin:0;color:#3f4a2b}
+      .f{margin:4px 0 8px}table{border-collapse:collapse;width:100%}th{background:#3f4a2b;color:#fff;text-align:left}
       th,td{border:1px solid #ccc;padding:3px 4px;vertical-align:top}tr.p td{background:#f1e8fa}thead{display:table-header-group}tr{break-inside:avoid}</style>
       <h1>${esc(TITULO)}</h1><div>4ª Bda C Mec · gerado em ${carimbo()}</div>
       <div class="f">${descreverFiltros().map(([k, v]) => `<b>${esc(k)}:</b> ${esc(v)}`).join(" &nbsp; ")} &nbsp; <b>${evs.length}</b> evento(s)</div>
