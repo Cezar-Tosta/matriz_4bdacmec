@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>StoryMap – Matriz de Sincronização 4ª Bda C Mec</title>
+<title>Matriz de Sincronização - Operação Perseu</title>
 <link rel="icon" type="image/png" href="img/brasao-64.png">
 <link rel="apple-touch-icon" href="img/brasao-256.png">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -14,12 +14,22 @@
   <div class="marca">
     <img class="brasao" src="img/brasao-256.png" alt="Brasão da 4ª Bda C Mec">
     <div>
-    <strong>StoryMap · Matriz de Sincronização</strong>
+    <strong>Matriz de Sincronização - Operação Perseu</strong>
     <span>4ª Bda C Mec · 05 a 29 NOV</span>
     </div>
   </div>
   <div class="acoes-topo">
-  <button id="btnEditar" class="btn-editar" title="Editar eventos e pontos do mapa">✎<span class="rot"> Editar</span></button>
+  <div class="exportar">
+    <button id="btnExportar" class="btn-topo" aria-haspopup="true" aria-expanded="false" title="Exportar os eventos conforme os filtros atuais">⬇<span class="rot"> Exportar</span></button>
+    <div id="menuExp" class="menu-exp" hidden>
+      <div class="menu-tit">Exportar conforme os filtros</div>
+      <div id="expResumo" class="menu-resumo"></div>
+      <button data-exp="pdf"><b>PDF</b><small>Tabela com os eventos filtrados</small></button>
+      <button data-exp="kmz"><b>KMZ</b><small>Google Earth (compactado, com pastas por dia)</small></button>
+      <button data-exp="kml"><b>KML</b><small>Google Earth, QGIS, ArcGIS e outros SIG</small></button>
+      <div id="expNota" class="menu-nota"></div>
+    </div>
+  </div>
   <div class="visoes" role="tablist">
     <button class="ativo" data-visao="mapa">Mapa</button>
     <button data-visao="matriz">Matriz</button>
@@ -27,18 +37,6 @@
   </div>
 </header>
 
-<section id="barraEd" class="barra-ed" hidden>
-  <strong>Modo edição</strong>
-  <span id="edResumo" class="ed-resumo"></span>
-  <span class="ed-botoes">
-    <button id="edNovo" class="primario">+ Novo evento</button>
-    <button id="edExportar" title="Baixa o arquivo edicoes.js com todas as edições; coloque-o na pasta do sistema para publicar">⬇ Exportar edicoes.js</button>
-    <label class="botao" title="Carrega um edicoes.js (ou .json) exportado por outra pessoa">⬆ Importar<input type="file" id="edImportar" accept=".js,.json" hidden></label>
-    <button id="edCsv" title="Planilha com todos os eventos já com as edições">⬇ CSV</button>
-    <button id="edDescartar" class="secundario">Descartar alterações locais</button>
-  </span>
-  <small class="ed-ajuda">Clique em ✎ num evento (lista ou mapa) para editar · arraste pontos e localidades no mapa para reposicionar.</small>
-</section>
 
 <section class="linha-tempo">
   <div class="controles-tempo">
@@ -93,51 +91,12 @@
   </section>
 </main>
 
-<div id="escolha" class="escolha" hidden>📍 Clique no mapa para marcar a posição <button id="escolhaCancelar">Cancelar (Esc)</button></div>
 <div id="aviso" class="aviso" role="status" hidden></div>
 
-<dialog id="dlgEd" class="dlg">
-  <form id="fmEd">
-    <h3 id="edTitulo">Editar evento</h3>
-    <div class="ed-orig" id="edOrig" hidden></div>
-    <label>Organização Militar<select id="edFr"></select></label>
-    <label>Dia<select id="edDia"></select></label>
-    <label>Descrição<textarea id="edTxt" rows="4"></textarea></label>
-    <div class="ed-linha">
-      <fieldset><legend>Turno</legend>
-        <label class="in"><input type="checkbox" name="edTurno" value="M"> Manhã</label>
-        <label class="in"><input type="checkbox" name="edTurno" value="T"> Tarde</label>
-        <label class="in"><input type="checkbox" name="edTurno" value="N"> Noite</label>
-      </fieldset>
-      <label>PMS<input id="edPms" placeholder="ex.: 3.2, 4"></label>
-    </div>
-    <button type="button" id="edDetectar" class="link">Detectar turno, PMS e coordenadas a partir da descrição</button>
-    <fieldset><legend>Localização no mapa</legend>
-      <label>Localidade (aproximada)<select id="edLocal"></select></label>
-      <label>Coordenada(s) – têm prioridade sobre a localidade
-        <input id="edCoords" placeholder="-20.4697, -54.6201  ou  20°28'11&quot;S 54°37'12&quot;W  (rota: pontos separados por ;)">
-      </label>
-      <div class="ed-coord-bt">
-        <button type="button" id="edPick">📍 Marcar no mapa</button>
-        <button type="button" id="edLimparC" class="secundario">Limpar coordenada</button>
-      </div>
-      <small id="edPrecInfo" class="suave"></small>
-    </fieldset>
-    <div id="edErro" class="erro" role="alert"></div>
-    <div class="acoes">
-      <button type="button" id="edExcluir" class="perigo">Excluir</button>
-      <button type="button" id="edRestaurar" class="secundario">Restaurar original</button>
-      <span class="esp"></span>
-      <button type="button" id="edCancelar" class="secundario">Cancelar</button>
-      <button type="submit" class="primario">Salvar</button>
-    </div>
-  </form>
-</dialog>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="data.js"></script>
 <script src="extras.js"></script>
-<script src="edicoes.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

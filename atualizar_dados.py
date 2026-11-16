@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Converte a Matriz de Sincronização (.xlsx) em data.js para o StoryMap.
+"""Converte a Matriz de Sincronização (.xlsx) em data.js para a Matriz de Sincronização - Operação Perseu.
 
 Uso:  python3 atualizar_dados.py Matriz.xlsx  [saida=data.js]
 Requer: pip install openpyxl

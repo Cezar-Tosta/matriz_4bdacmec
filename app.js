@@ -1,15 +1,12 @@
-/* StoryMap – Matriz de Sincronização (HTML + CSS + JS puro, Leaflet para o mapa) */
+/* Matriz de Sincronização - Operação Perseu (HTML + CSS + JS puro, Leaflet para o mapa) */
 (() => {
   const M = window.MATRIZ;
   const FR = Object.fromEntries(M.fracoes.map(f => [f.id, f]));
-  const FR_NOME = Object.fromEntries(M.fracoes.map(f => [f.nome, f]));
   const FR_IDX = Object.fromEntries(M.fracoes.map((f, i) => [f.id, i]));
-  const clone = o => o === undefined ? undefined : JSON.parse(JSON.stringify(o));
-  const igual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
   // eventos manuais (extras.js): entram logo após os eventos da mesma fração no mesmo dia
   (window.MATRIZ_EXTRAS || []).forEach(x => {
-    const f = FR_NOME[x.fracao];
+    const f = M.fracoes.find(f => f.nome === x.fracao);
     if (!f) { console.warn("extras.js: fração não encontrada:", x.fracao); return; }
     const coords = x.coords || [];
     const e = { fid: f.id, dia: x.dia, txt: x.txt, pc: null, pms: x.pms || [], turno: x.turno || [], coords,
@@ -33,100 +30,8 @@
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const norm = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-  // ---------- base (planilha + extras) com chave estável ----------
-  // a chave "OM|dia|texto original" identifica o evento mesmo depois de regenerar o data.js
-  const vistos = {};
-  const BASE = M.eventos.map((e, i) => {
-    let k = `${FR[e.fid].nome}|${e.dia}|${e.txt}`;
-    vistos[k] = (vistos[k] || 0) + 1;
-    if (vistos[k] > 1) k += "#" + vistos[k];
-    return { ...clone(e), chave: k, ordem: i };
-  });
-  const BASE_K = Object.fromEntries(BASE.map(b => [b.chave, b]));
-  const LOCAIS_BASE = { ...M.locais };
-
-  // ---------- edições: publicadas (edicoes.js) + locais (navegador) ----------
-  const LS = "matriz4bda.edicoes.v1";
-  const vazioED = () => ({ alterados: {}, removidos: [], novos: {}, locais: {} });
-  function normED(x) {
-    const r = vazioED();
-    if (!x || typeof x !== "object") return r;
-    Object.assign(r.alterados, x.alterados || {});
-    r.removidos = Array.isArray(x.removidos) ? [...x.removidos] : [];
-    if (Array.isArray(x.novos)) x.novos.forEach((n, i) => { r.novos[n.uid || "novo:imp" + i] = n; });
-    else Object.assign(r.novos, x.novos || {});
-    Object.assign(r.locais, x.locais || {});
-    return r;
-  }
-  const PUB = normED(window.MATRIZ_EDICOES);
-  let LOCAL = normED((() => { try { return JSON.parse(localStorage.getItem(LS)); } catch { return null; } })());
-  const salvarLocal = () => { try { localStorage.setItem(LS, JSON.stringify(LOCAL)); } catch { } };
-
-  function combinar(a, b) {
-    const r = clone(a);
-    r.removidos = [...new Set([...r.removidos, ...b.removidos])];
-    Object.entries(b.alterados).forEach(([k, v]) => {
-      if (v === null) { delete r.alterados[k]; r.removidos = r.removidos.filter(x => x !== k); } else r.alterados[k] = v;
-    });
-    Object.entries(b.novos).forEach(([k, v]) => { r.novos[k] = v; });
-    Object.entries(b.locais).forEach(([k, v]) => { if (v === null) delete r.locais[k]; else r.locais[k] = v; });
-    return r;
-  }
-  // remove do LOCAL o que já está igual ao publicado (assim "pendentes" = o que falta exportar)
-  function podar() {
-    Object.keys(LOCAL.alterados).forEach(k => {
-      const v = LOCAL.alterados[k];
-      if (v === null ? !(k in PUB.alterados) && !PUB.removidos.includes(k) : igual(v, PUB.alterados[k])) delete LOCAL.alterados[k];
-    });
-    LOCAL.removidos = LOCAL.removidos.filter(k => {
-      if (PUB.removidos.includes(k)) return false;
-      if (LOCAL.novos[k] && !PUB.novos[k]) { delete LOCAL.novos[k]; return false; }   // novo criado e apagado localmente
-      return true;
-    });
-    Object.keys(LOCAL.novos).forEach(k => { if (igual(LOCAL.novos[k], PUB.novos[k])) delete LOCAL.novos[k]; });
-    Object.keys(LOCAL.locais).forEach(k => {
-      const v = LOCAL.locais[k];
-      if (v === null ? !(k in PUB.locais) : igual(v, PUB.locais[k])) delete LOCAL.locais[k];
-    });
-  }
-  const pendentes = () => Object.keys(LOCAL.alterados).length + LOCAL.removidos.length + Object.keys(LOCAL.novos).length + Object.keys(LOCAL.locais).length;
-
-  // ---------- aplicação das edições sobre a base ----------
-  const idDe = new Map(); let proxId = 0;
-  const idPara = k => { if (!idDe.has(k)) idDe.set(k, proxId++); return idDe.get(k); };
-  let ED = vazioED(), EV = new Map(), ORFAOS = 0;
-
-  function aplicarCampos(e, a) {
-    if (a.fracao !== undefined && FR_NOME[a.fracao]) e.fid = FR_NOME[a.fracao].id;
-    ["dia", "txt", "turno", "pms", "coords", "local", "prec"].forEach(c => { if (a[c] !== undefined) e[c] = clone(a[c]); });
-    if (a.prec === undefined && (a.coords !== undefined || a.local !== undefined))
-      e.prec = e.coords.length ? "exata" : e.local ? "aprox" : null;
-  }
-  function aplicar() {
-    podar();
-    ED = combinar(PUB, LOCAL);
-    M.locais = { ...LOCAIS_BASE, ...ED.locais };
-    const rem = new Set(ED.removidos), lista = [];
-    BASE.forEach(b => {
-      if (rem.has(b.chave)) return;
-      const a = ED.alterados[b.chave], e = { ...clone(b), origem: "planilha", editado: !!a };
-      if (a) aplicarCampos(e, a);
-      lista.push(e);
-    });
-    Object.entries(ED.novos).forEach(([uid, n]) => {
-      if (rem.has(uid)) return;
-      const e = { chave: uid, ordem: BASE.length + (n.seq || 0), fid: null, dia: null, txt: "", pc: null,
-        pms: [], turno: [], coords: [], local: null, prec: null, origem: "novo", editado: true };
-      aplicarCampos(e, n);
-      if (e.fid && DIA[e.dia]) lista.push(e);
-    });
-    lista.sort((x, y) => FR_IDX[x.fid] - FR_IDX[y.fid] || DIA[x.dia].i - DIA[y.dia].i || x.ordem - y.ordem);
-    lista.forEach(e => { e.id = idPara(e.chave); e.n = norm(e.txt + " " + FR[e.fid].nome); });
-    M.eventos = lista;
-    EV = new Map(lista.map(e => [e.id, e]));
-    ORFAOS = Object.keys(ED.alterados).filter(k => !BASE_K[k]).length + ED.removidos.filter(k => !BASE_K[k] && !ED.novos[k]).length;
-    calcMarcos();
-  }
+  // ---------- eventos ----------
+  M.eventos.forEach((e, i) => { e.id = i; e.ordem = i; e.n = norm(e.txt + " " + FR[e.fid].nome); });
 
   // marcos automáticos por dia
   function calcMarcos() {
@@ -144,9 +49,9 @@
   const S = {
     dia: DIAS[idxD >= 0 ? idxD : 0].id,
     setores: new Set(), partidos: new Set(), turnos: new Set(), fracoes: new Set(),
-    tipo: "all", q: "", foco: null, visao: "mapa", edicao: false,
+    tipo: "all", q: "", foco: null, visao: "mapa",
   };
-  aplicar();
+  calcMarcos();
 
   // ---------- filtros ----------
   const frVisivel = f => (!S.setores.size || S.setores.has(f.setor)) && (!S.partidos.size || S.partidos.has(f.partido));
@@ -234,14 +139,13 @@
   const camada = L.layerGroup().addTo(mapa);
   const marcadorDoEvento = new Map();
 
-  const btnEd = e => S.edicao ? ` <button class="ed-mini" data-editar="${e.id}" title="Editar este evento">✎</button>` : "";
-  function popupHtml(lista, titulo, extra = "") {
+  function popupHtml(lista, titulo) {
     const porFr = {};
     lista.forEach(e => (porFr[e.fid] ||= []).push(e));
     return `<div class="pop"><h5>${esc(titulo)}</h5>` + Object.entries(porFr).map(([fid, evs]) =>
       `<b class="om" data-om="${fid}" title="Clique para filtrar só esta OM">${esc(FR[fid].nome)}</b> <span class="pc">${esc(FR[fid].partido)}</span><ul>` +
-      evs.map(e => `<li>${S.dia === "ALL" ? `<span class="tag dia">${esc(DIA[e.dia].data)}</span> ` : ""}${esc(e.txt)}${e.editado ? ' <span class="tag ed">editado</span>' : ""}${btnEd(e)}</li>`).join("") + "</ul>"
-    ).join("") + (lista[0].pc && lista[0].prec === "pc" ? `<div class="pc">${esc(lista[0].pc)}</div>` : "") + extra + "</div>";
+      evs.map(e => `<li>${S.dia === "ALL" ? `<span class="tag dia">${esc(DIA[e.dia].data)}</span> ` : ""}${esc(e.txt)}</li>`).join("") + "</ul>"
+    ).join("") + (lista[0].pc && lista[0].prec === "pc" ? `<div class="pc">${esc(lista[0].pc)}</div>` : "") + "</div>";
   }
 
   function desenharMapa(evs, voar) {
@@ -264,13 +168,10 @@
     const popW = Math.min(380, innerWidth - 60);
     locais.forEach((lista, nome) => {
       const ll = M.locais[nome], n = lista.length, tam = Math.min(estreito() ? 54 : 70, (estreito() ? 24 : 30) + Math.sqrt(n) * 5);
-      const dica = S.edicao ? `<div class="ed-dica">Arraste o círculo para ajustar a posição de <b>${esc(nome)}</b> (vale para todos os eventos desta localidade).`
-        + (ED.locais[nome] ? ` <button class="link" data-restloc="${esc(nome)}">Restaurar posição original</button>` : "") + `</div>` : "";
       const mk = L.marker(ll, {
-        icon: L.divIcon({ className: "", html: `<div class="loc-ic ${S.edicao ? "arrastavel" : ""}" style="width:${tam}px;height:${tam}px">${n}<small>${esc(nome)}</small></div>`, iconSize: [tam, tam], iconAnchor: [tam / 2, tam / 2] }),
-        zIndexOffset: -500, draggable: S.edicao,
-      }).bindPopup(popupHtml(lista, `${nome} · localização aproximada`, dica), { maxWidth: popW }).addTo(camada);
-      mk.on("dragend", () => { const p = mk.getLatLng(); LOCAL.locais[nome] = [+p.lat.toFixed(6), +p.lng.toFixed(6)]; confirmar(`Posição de ${nome} ajustada`); });
+        icon: L.divIcon({ className: "", html: `<div class="loc-ic" style="width:${tam}px;height:${tam}px">${n}<small>${esc(nome)}</small></div>`, iconSize: [tam, tam], iconAnchor: [tam / 2, tam / 2] }),
+        zIndexOffset: -500,
+      }).bindPopup(popupHtml(lista, `${nome} · localização aproximada`), { maxWidth: popW }).addTo(camada);
       lista.forEach(e => marcadorDoEvento.set(e.id, mk));
       limites.push(ll);
     });
@@ -278,20 +179,14 @@
     pontos.forEach((lista, k) => {
       const e0 = lista[0], cor = COR[partKey(FR[e0.fid].partido)] || "#555";
       const temPms = lista.some(e => e.pms.length), ePc = k.endsWith("|pc");
-      const cls = `mk ${temPms ? "pms" : ""} ${ePc ? "pc" : ""} ${lista.some(e => e.id === S.foco) ? "sel" : ""} ${S.edicao ? "arrastavel" : ""}`;
+      const cls = `mk ${temPms ? "pms" : ""} ${ePc ? "pc" : ""} ${lista.some(e => e.id === S.foco) ? "sel" : ""}`;
       const bg = temPms ? "var(--pms)" : cor;
-      const dica = S.edicao ? `<div class="ed-dica">Arraste o ponto para reposicionar ${lista.length > 1 ? `os ${lista.length} eventos` : "o evento"}.</div>` : "";
       const mk = L.marker(e0.coords[0], {
         icon: L.divIcon({ className: "", html: `<div class="${cls}" style="background:${bg};--cor:${cor}"></div>${lista.length > 1 ? `<span class="mk-n">${lista.length}</span>` : ""}`, iconSize: [16, 16], iconAnchor: [8, 8] }),
-        zIndexOffset: temPms ? 500 : 0, draggable: S.edicao,
-      }).bindPopup(popupHtml(lista, ePc ? "Posição do PC" : (temPms ? "PMS · " + lista.flatMap(e => e.pms).map(p => "PMS " + p).filter((v, i, a) => a.indexOf(v) === i).join(", ") : "Coordenada informada"), dica), { maxWidth: popW })
+        zIndexOffset: temPms ? 500 : 0,
+      }).bindPopup(popupHtml(lista, ePc ? "Posição do PC" : (temPms ? "PMS · " + lista.flatMap(e => e.pms).map(p => "PMS " + p).filter((v, i, a) => a.indexOf(v) === i).join(", ") : "Coordenada informada")), { maxWidth: popW })
         .addTo(camada);
       mk.on("click", () => focar(lista[0].id, false));
-      mk.on("dragend", () => {
-        const p = mk.getLatLng(), ll = [+p.lat.toFixed(6), +p.lng.toFixed(6)];
-        lista.forEach(e => registrar(e, { ...campos(e), coords: [ll, ...e.coords.slice(1)], prec: e.prec }));
-        confirmar(lista.length > 1 ? `${lista.length} eventos reposicionados` : "Evento reposicionado");
-      });
       lista.forEach(e => marcadorDoEvento.set(e.id, mk));
       limites.push(e0.coords[0]);
     });
@@ -330,8 +225,8 @@
       ${e.pms.map(p => `<span class="tag pms">PMS ${esc(p)}</span>`).join("")}
       ${e.turno.map(t => `<span class="tag">${t}</span>`).join("")}
       ${loc ? `<span class="tag loc">${esc(loc)}</span>` : ""}
-      ${e.editado ? `<span class="tag ed">${e.origem === "novo" ? "novo" : "editado"}</span>` : ""}</span></button>`;
-    return S.edicao ? `<div class="ev-linha">${bt}<button class="ed-mini" data-editar="${e.id}" title="Editar">✎</button></div>` : bt;
+</span></button>`;
+    return bt;
   }
   function desenharLista(evs) {
     const d = DIA[S.dia];
@@ -339,13 +234,12 @@
     const nFr = new Set(evs.map(e => e.fid)).size;
     const destaques = evs.filter(e => e.pms.length).slice(0, 3);
     const kpis = `<div class="kpis"><div><b>${evs.length}</b>eventos</div><div><b>${nPms}</b>PMS</div>` + `<div><b>${nFr}</b>frações</div></div>`;
-    const novo = S.edicao ? `<button id="edNovoCap" class="primario largura">+ Novo evento ${S.dia === "ALL" ? "" : "em " + esc(d.data)}</button>` : "";
     $("#capitulo").innerHTML = (S.dia === "ALL"
       ? `<h2>Todos os dias</h2><div class="sub">${esc(DIAS[0].data)} a ${esc(DIAS.at(-1).data)}</div>` + kpis
       : `<h2>${esc(d.data)} <small style="font-weight:400;color:var(--suave)">${esc(d.semana)} · ${esc(d.relCalc)}</small></h2>`
         + `<div class="sub">${d.marcos.length ? esc(d.marcos.join(" · ")) : "Dia " + (d.i + 1) + " de " + DIAS.length}</div>`
         + kpis
-        + destaques.map(e => `<div class="destaque"><b>${esc(FR[e.fid].nome)}</b> — ${esc(e.txt.length > 140 ? e.txt.slice(0, 140) + "…" : e.txt)}</div>`).join("")) + novo;
+        + destaques.map(e => `<div class="destaque"><b>${esc(FR[e.fid].nome)}</b> — ${esc(e.txt.length > 140 ? e.txt.slice(0, 140) + "…" : e.txt)}</div>`).join(""));
     $("#contagem").textContent = `${evs.length} de ${M.eventos.filter(e => S.dia === "ALL" || e.dia === S.dia).length} no período`;
 
     if (!evs.length) { $("#eventos").innerHTML = `<div class="vazio-msg">Nenhum evento com esses filtros.</div>`; return; }
@@ -457,194 +351,16 @@
     timer = setInterval(() => { if (DIA[S.dia].i === DIAS.length - 1) $("#btnPlay").click(); else passo(1); }, 3500);
   });
   document.addEventListener("keydown", ev => {
-    if (ev.target.matches("input, textarea, select") || $("#dlgEd").open) return;
+    if (ev.target.matches("input, textarea, select")) return;
     if (ev.key === "ArrowRight") passo(1);
     if (ev.key === "ArrowLeft") passo(-1);
   });
 
-  // =====================================================================
-  // ---------- MODO EDIÇÃO ----------
-  // =====================================================================
-  const campos = e => ({ fracao: FR[e.fid].nome, dia: e.dia, txt: e.txt, turno: clone(e.turno), pms: clone(e.pms),
-    coords: clone(e.coords), local: e.local, prec: e.prec });
-  const novoUid = () => "novo:" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-
-  // grava a alteração de um evento em LOCAL (só os campos diferentes do original da planilha)
-  function registrar(e, novo) {
-    if (e.origem === "novo") { LOCAL.novos[e.chave] = { ...(ED.novos[e.chave] || {}), ...novo }; return; }
-    const orig = campos(BASE_K[e.chave]), dif = {};
-    Object.keys(novo).forEach(c => { if (!igual(novo[c], orig[c])) dif[c] = novo[c]; });
-    if (Object.keys(dif).length) LOCAL.alterados[e.chave] = dif; else restaurar(e.chave, true);
-  }
-  function restaurar(k, semConfirmar) {
-    if (k in PUB.alterados || PUB.removidos.includes(k)) LOCAL.alterados[k] = null; else delete LOCAL.alterados[k];
-    LOCAL.removidos = LOCAL.removidos.filter(x => x !== k);
-    if (!semConfirmar) confirmar("Evento restaurado ao original da planilha");
-  }
-  function excluir(e) {
-    if (e.origem === "novo" && !PUB.novos[e.chave]) delete LOCAL.novos[e.chave];
-    else { delete LOCAL.alterados[e.chave]; if (!LOCAL.removidos.includes(e.chave)) LOCAL.removidos.push(e.chave); }
-  }
-  function confirmar(msg) { salvarLocal(); aplicar(); render(false); if (msg) aviso(msg); }
-
+  // ---------- utilitários ----------
   let tAviso;
   function aviso(msg) {
     const el = $("#aviso"); el.textContent = msg; el.hidden = false;
     clearTimeout(tAviso); tAviso = setTimeout(() => el.hidden = true, 2600);
-  }
-  function resumoEdicao() {
-    const n = pendentes(), tot = Object.keys(ED.alterados).length + ED.removidos.length + Object.keys(ED.novos).length + Object.keys(ED.locais).length;
-    $("#edResumo").innerHTML = (n ? `<b>${n}</b> alteração(ões) não exportada(s)` : "Nenhuma alteração pendente")
-      + ` · ${tot} no total` + (ORFAOS ? ` · <span class="alerta" title="Edições cujo texto original não existe mais no data.js (a planilha mudou)">${ORFAOS} sem correspondência</span>` : "");
-    $("#btnEditar").classList.toggle("pendente", n > 0);
-    $("#btnEditar").title = n ? `${n} alteração(ões) ainda não exportada(s)` : "Editar eventos e pontos do mapa";
-  }
-
-  $("#btnEditar").addEventListener("click", () => {
-    S.edicao = !S.edicao;
-    $("#btnEditar").classList.toggle("ativo", S.edicao);
-    $("#barraEd").hidden = !S.edicao;
-    document.body.classList.toggle("editando", S.edicao);
-    render(false);
-    setTimeout(() => mapa.invalidateSize(), 50);
-  });
-
-  // ---- formulário ----
-  const dlg = $("#dlgEd");
-  $("#edFr").innerHTML = setores.map(s => `<optgroup label="${esc(setorCurto(s))} · ${esc(setorSub(s))}">` +
-    M.fracoes.filter(f => f.setor === s).map(f => `<option value="${esc(f.nome)}">${esc(f.nome)} (${esc(f.partido)})</option>`).join("") + `</optgroup>`).join("");
-  $("#edDia").innerHTML = DIAS.map(d => `<option value="${d.id}">${esc(d.data)} · ${esc(d.semana)} ${esc(d.relCalc)}</option>`).join("");
-  const opcoesLocal = () => `<option value="">— nenhuma —</option>` + Object.keys(M.locais).map(n => `<option>${esc(n)}</option>`).join("");
-
-  const fmtCoords = cs => cs.map(c => c.map(v => +(+v).toFixed(6)).join(", ")).join("; ");
-  // aceita graus decimais ("-20.47, -54.62") ou GMS ("20°28'10"S 54°37'12"W"); vários pontos separados por ";"
-  function lerCoords(txt) {
-    const out = [];
-    for (const seg of txt.split(";").map(s => s.trim()).filter(Boolean)) {
-      const gms = [...seg.matchAll(/(\d{1,3})\s*[°º]\s*(\d{1,2})\s*['′’]\s*([\d.,]+)\s*(?:"+|″|''|”)?\s*([NSWOEL])/gi)]
-        .map(m => (+m[1] + +m[2] / 60 + parseFloat(m[3].replace(",", ".")) / 3600) * (/[SWO]/i.test(m[4]) ? -1 : 1));
-      const nums = gms.length === 2 ? gms : (seg.match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
-      if (nums.length !== 2 || Math.abs(nums[0]) > 90 || Math.abs(nums[1]) > 180) return null;
-      out.push([+nums[0].toFixed(6), +nums[1].toFixed(6)]);
-    }
-    return out;
-  }
-
-  let edAtual = null;   // evento em edição (null = novo)
-  function abrirEditor(e, padrao = {}) {
-    edAtual = e || null;
-    const c = e ? campos(e) : { fracao: padrao.fracao, dia: padrao.dia, txt: "", turno: [], pms: [], coords: [], local: null, prec: null };
-    $("#edTitulo").textContent = e ? "Editar evento" : "Novo evento";
-    $("#edFr").value = c.fracao || M.fracoes[0].nome;
-    $("#edDia").value = c.dia || DIAS[0].id;
-    $("#edTxt").value = c.txt;
-    document.querySelectorAll("#fmEd input[name=edTurno]").forEach(i => i.checked = c.turno.includes(i.value));
-    $("#edPms").value = c.pms.join(", ");
-    $("#edLocal").innerHTML = opcoesLocal(); $("#edLocal").value = c.local || "";
-    $("#edCoords").value = fmtCoords(c.coords);
-    $("#edPrecInfo").textContent = c.prec === "pc" ? "Coordenada herdada da posição do PC na planilha." : "";
-    $("#edErro").textContent = "";
-    const b = e && e.origem !== "novo" ? BASE_K[e.chave] : null;
-    $("#edOrig").innerHTML = b && e.editado ? `<b>Original da planilha:</b> ${esc(FR[b.fid].nome)} · ${esc(DIA[b.dia].data)}<br>${esc(b.txt)}` : "";
-    $("#edOrig").hidden = !(b && e.editado);
-    $("#edRestaurar").hidden = !(b && e.editado);
-    $("#edExcluir").hidden = !e;
-    $("#edExcluir").textContent = "Excluir"; $("#edExcluir").classList.remove("confirmar");
-    dlg.showModal();
-    $("#edTxt").focus();
-  }
-  function lerForm() {
-    const coords = lerCoords($("#edCoords").value);
-    if (coords === null) { $("#edErro").textContent = "Coordenada inválida. Use “lat, lon” em graus decimais (ex.: -20.4697, -54.6201) ou GMS."; return null; }
-    const txt = $("#edTxt").value.trim();
-    if (!txt) { $("#edErro").textContent = "Informe a descrição do evento."; return null; }
-    const local = $("#edLocal").value || null;
-    const n = {
-      fracao: $("#edFr").value, dia: $("#edDia").value, txt,
-      turno: [...document.querySelectorAll("#fmEd input[name=edTurno]:checked")].map(i => i.value),
-      pms: $("#edPms").value.split(/[,;\s]+/).map(s => s.replace(/^PMS/i, "").trim()).filter(Boolean),
-      coords, local,
-    };
-    n.prec = edAtual && igual(coords, edAtual.coords) && local === edAtual.local ? edAtual.prec
-      : coords.length ? "exata" : local ? "aprox" : null;
-    return n;
-  }
-  // preenche turno/PMS a partir do texto, como faz o script da planilha
-  $("#edDetectar").addEventListener("click", () => {
-    const t = $("#edTxt").value;
-    const pms = [...t.matchAll(/PMS\s*(\d+(?:\.\d+)?)/g)].map(m => m[1]);
-    const tur = new Set([...t.matchAll(/\(((?:M|T|N)(?:\s*\/\s*(?:M|T|N))*)\)/g)].flatMap(m => m[1].split(/\s*\/\s*/)));
-    if (pms.length) $("#edPms").value = [...new Set(pms)].join(", ");
-    document.querySelectorAll("#fmEd input[name=edTurno]").forEach(i => { if (tur.size) i.checked = tur.has(i.value); });
-    const gms = t.match(/\d{1,3}\s*[°º]\s*\d{1,2}\s*['′’]\s*[\d.,]+\s*(?:"+|″|''|”)?\s*[NSWOEL]/gi) || [];
-    const pares = []; for (let i = 0; i + 1 < gms.length; i += 2) pares.push(gms[i] + " " + gms[i + 1]);
-    const c = pares.length ? lerCoords(pares.join("; ")) : null;
-    if (c && c.length && !$("#edCoords").value) $("#edCoords").value = fmtCoords(c);
-  });
-
-  $("#fmEd").addEventListener("submit", ev => {
-    ev.preventDefault();
-    const n = lerForm(); if (!n) return;
-    let id;
-    if (edAtual) { registrar(edAtual, n); id = edAtual.id; }
-    else { const uid = novoUid(); LOCAL.novos[uid] = { ...n, seq: Date.now() }; id = idPara(uid); }
-    dlg.close();
-    confirmar(edAtual ? "Evento salvo" : "Evento criado");
-    const e = EV.get(id);
-    if (e && S.dia !== "ALL" && e.dia !== S.dia) aviso(`Salvo em ${DIA[e.dia].data} (outro dia)`);
-    else if (e && !passa(e)) aviso("Salvo – fora dos filtros atuais");
-    else if (e) focar(id, false);
-  });
-  $("#edCancelar").addEventListener("click", () => dlg.close());
-  $("#edRestaurar").addEventListener("click", () => { if (!edAtual) return; dlg.close(); restaurar(edAtual.chave); });
-  $("#edExcluir").addEventListener("click", () => {
-    const b = $("#edExcluir");
-    if (!b.classList.contains("confirmar")) { b.classList.add("confirmar"); b.textContent = "Clique de novo para excluir"; return; }
-    dlg.close(); excluir(edAtual); confirmar("Evento excluído");
-  });
-  $("#edLimparC").addEventListener("click", () => { $("#edCoords").value = ""; });
-
-  // marcar coordenada clicando no mapa
-  $("#edPick").addEventListener("click", () => {
-    if (S.visao !== "mapa") trocarVisao("mapa");
-    dlg.close();
-    $("#escolha").hidden = false; document.body.classList.add("escolhendo");
-    const fim = ll => {
-      $("#escolha").hidden = true; document.body.classList.remove("escolhendo");
-      document.removeEventListener("keydown", esc_); mapa.off("click", clique);
-      if (ll) { $("#edCoords").value = fmtCoords([[ll.lat, ll.lng]]); }
-      dlg.showModal();
-    };
-    const clique = ev => fim(ev.latlng);
-    const esc_ = ev => { if (ev.key === "Escape") fim(null); };
-    mapa.once("click", clique);
-    document.addEventListener("keydown", esc_);
-    $("#escolhaCancelar").onclick = () => fim(null);
-  });
-  dlg.addEventListener("cancel", () => { edAtual = null; });
-
-  // cliques em "✎" (lista e popups do mapa), "novo evento" e "restaurar localidade"
-  document.addEventListener("click", ev => {
-    const ed = ev.target.closest("[data-editar]");
-    if (ed) { ev.stopPropagation(); mapa.closePopup(); abrirEditor(EV.get(+ed.dataset.editar)); return; }
-    if (ev.target.closest("#edNovoCap, #edNovo")) {
-      const fr = S.fracoes.size ? FR[[...S.fracoes][0]] : M.fracoes.find(frVisivel);
-      abrirEditor(null, { fracao: fr && fr.nome, dia: S.dia === "ALL" ? DIAS[0].id : S.dia });
-      return;
-    }
-    const rl = ev.target.closest("[data-restloc]");
-    if (rl) {
-      const n = rl.dataset.restloc;
-      if (n in PUB.locais) LOCAL.locais[n] = null; else delete LOCAL.locais[n];
-      mapa.closePopup(); confirmar(`Posição original de ${n} restaurada`);
-    }
-  });
-
-  // ---- exportar / importar / descartar ----
-  function conjuntoFinal() {
-    const t = combinar(PUB, LOCAL);
-    t.removidos = t.removidos.filter(k => { if (t.novos[k]) { delete t.novos[k]; return false; } return true; });
-    return { atualizado: new Date().toISOString(), ...t };
   }
   function baixar(nome, txt, tipo) {
     const a = document.createElement("a");
@@ -652,41 +368,239 @@
     a.download = nome; document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
-  $("#edExportar").addEventListener("click", () => {
-    const t = conjuntoFinal();
-    baixar("edicoes.js", `/* Edições do StoryMap – geradas em ${t.atualizado}.\n   Coloque este arquivo na pasta do StoryMap (substituindo o anterior) para publicar as edições. */\n`
-      + `window.MATRIZ_EDICOES = ${JSON.stringify(t, null, 1)};\n`, "text/javascript");
-    aviso("edicoes.js exportado – substitua o arquivo na pasta do sistema");
+  const fmtCoords = cs => cs.map(c => c.map(v => +(+v).toFixed(6)).join(", ")).join("; ");
+
+  // =====================================================================
+  // ---------- EXPORTAÇÃO (PDF / KML / KMZ) conforme os filtros ----------
+  // =====================================================================
+  const TITULO = "Matriz de Sincronização - Operação Perseu";
+  const eventosFiltrados = () => M.eventos.filter(e => passa(e))
+    .sort((a, b) => DIA[a.dia].i - DIA[b.dia].i || FR_IDX[a.fid] - FR_IDX[b.fid] || a.ordem - b.ordem);
+  const turnoNome = { M: "Manhã", T: "Tarde", N: "Noite" };
+
+  // descrição legível dos filtros ativos (vai no cabeçalho do PDF e na descrição do KML)
+  function descreverFiltros() {
+    const l = [["Período", S.dia === "ALL" ? `Todos os dias (${DIAS[0].data} a ${DIAS.at(-1).data})` : `${DIA[S.dia].data} (${DIA[S.dia].semana}${DIA[S.dia].relCalc ? " · " + DIA[S.dia].relCalc : ""})`]];
+    if (S.setores.size) l.push(["Setor", [...S.setores].map(s => setorCurto(s) + (setorSub(s) ? " · " + setorSub(s) : "")).join("; ")]);
+    if (S.partidos.size) l.push(["Partido", [...S.partidos].join(", ")]);
+    if (S.fracoes.size) l.push(["OM", [...S.fracoes].map(id => FR[id].nome).join(", ")]);
+    if (S.tipo !== "all") l.push(["Tipo", S.tipo === "pms" ? "Só PMS" : "Sem PMS"]);
+    if (S.turnos.size) l.push(["Turno", [...S.turnos].map(t => turnoNome[t]).join(", ")]);
+    if (S.q) l.push(["Busca", `“${S.q}”`]);
+    return l;
+  }
+  const localTxt = e => e.prec === "exata" ? fmtCoords(e.coords) : e.prec === "pc" ? "PC: " + fmtCoords(e.coords)
+    : e.local ? `≈ ${e.local}` : "";
+  const carimbo = () => { const d = new Date(), p = n => String(n).padStart(2, "0"); return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+  const nomeArq = ext => {
+    const per = S.dia === "ALL" ? "todos-os-dias" : S.dia;
+    const om = S.fracoes.size === 1 ? "_" + FR[[...S.fracoes][0]].nome : "";
+    return `Matriz_Perseu_${per}${om}`.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w.-]+/g, "_") + "." + ext;
+  };
+
+  // ---- menu ----
+  const menu = $("#menuExp");
+  function abrirMenu(abrir) {
+    menu.hidden = !abrir; $("#btnExportar").setAttribute("aria-expanded", abrir);
+    if (!abrir) return;
+    const evs = eventosFiltrados(), semLoc = evs.filter(e => !e.coords.length && !(e.local && M.locais[e.local])).length;
+    $("#expResumo").innerHTML = `<b>${evs.length}</b> evento(s) · ` + descreverFiltros().map(([k, v]) => `${esc(k)}: ${esc(v)}`).join(" · ");
+    $("#expNota").textContent = semLoc ? `${semLoc} evento(s) sem localização entram no PDF, mas não no KML/KMZ.` : "";
+    menu.querySelectorAll("button").forEach(b => b.disabled = !evs.length);
+  }
+  $("#btnExportar").addEventListener("click", ev => { ev.stopPropagation(); abrirMenu(menu.hidden); });
+  document.addEventListener("click", ev => { if (!menu.hidden && !ev.target.closest(".exportar")) abrirMenu(false); });
+  document.addEventListener("keydown", ev => { if (ev.key === "Escape") abrirMenu(false); });
+  menu.addEventListener("click", ev => {
+    const b = ev.target.closest("[data-exp]"); if (!b) return;
+    abrirMenu(false);
+    const evs = eventosFiltrados();
+    if (b.dataset.exp === "pdf") exportarPdf(evs);
+    else exportarKml(evs, b.dataset.exp === "kmz");
   });
-  // planilha CSV com todos os eventos já com as edições (para conferência ou para levar à matriz oficial)
-  $("#edCsv").addEventListener("click", () => {
-    const q = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const linhas = [["Setor", "Partido", "OM", "Dia", "Descrição", "Turno", "PMS", "Localidade", "Coordenadas", "Situação"]]
-      .concat(M.eventos.map(e => { const f = FR[e.fid]; return [f.setor, f.partido, f.nome, DIA[e.dia].data, e.txt, e.turno.join("/"), e.pms.join(", "), e.local, fmtCoords(e.coords), e.origem === "novo" ? "novo" : e.editado ? "editado" : ""]; }));
-    baixar("matriz_eventos.csv", "﻿" + linhas.map(l => l.map(q).join(";")).join("\r\n"), "text/csv");
+
+  // ---- PDF (jsPDF + AutoTable via CDN; sem internet cai para a impressão do navegador) ----
+  const carregar = src => new Promise((ok, falha) => {
+    const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = () => falha(new Error(src)); document.head.appendChild(s);
   });
-  $("#edImportar").addEventListener("change", async ev => {
-    const arq = ev.target.files[0]; ev.target.value = "";
-    if (!arq) return;
-    try {
-      const t = await arq.text();
-      const imp = normED(JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1)));
-      LOCAL = combinar(LOCAL, imp);
-      confirmar(`Edições importadas de ${arq.name}`);
-    } catch (err) { aviso("Não foi possível ler o arquivo: " + err.message); }
-  });
-  $("#edDescartar").addEventListener("click", () => {
-    const b = $("#edDescartar");
-    if (!pendentes()) { aviso("Não há alterações locais"); return; }
-    if (!b.classList.contains("confirmar")) {
-      b.classList.add("confirmar"); b.textContent = `Confirmar: descartar ${pendentes()}?`;
-      setTimeout(() => { b.classList.remove("confirmar"); b.textContent = "Descartar alterações locais"; }, 4000);
-      return;
+  let libsPdf;
+  const libsPdfProntas = () => libsPdf ||= carregar("https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js")
+    .then(() => carregar("https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"))
+    .catch(err => { libsPdf = null; throw err; });
+  // fontes padrão do PDF só têm Latin-1: troca tipografia "especial" por equivalentes simples
+  const pdfTxt = s => String(s ?? "").replace(/[–—]/g, "-").replace(/[‘’′]/g, "'").replace(/[“”″]/g, '"').replace(/…/g, "...")
+    .replace(/≈/g, "~").replace(/[•·]/g, "·").replace(/[^\x00-\xff]/g, "");
+  function linhasTabela(evs) {
+    return evs.map(e => { const f = FR[e.fid]; return {
+      dia: `${DIA[e.dia].data}${DIA[e.dia].relCalc ? " " + DIA[e.dia].relCalc : ""}`,
+      setor: setorCurto(f.setor) + (setorSub(f.setor) ? " · " + setorSub(f.setor) : ""),
+      om: f.nome, partido: f.partido, txt: e.txt, turno: e.turno.join("/"),
+      pms: e.pms.join(", "), local: localTxt(e), temPms: !!e.pms.length,
+    }; });
+  }
+  async function exportarPdf(evs) {
+    aviso("Gerando PDF…");
+    try { await libsPdfProntas(); } catch { aviso("Sem acesso à biblioteca de PDF (internet). Abrindo versão para imprimir/salvar em PDF."); return imprimirTabela(evs); }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), mg = 10;
+    let logo = null;
+    try { const im = $(".marca .brasao"), c = document.createElement("canvas"); c.width = c.height = 128; c.getContext("2d").drawImage(im, 0, 0, 128, 128); logo = c.toDataURL("image/png"); } catch { }
+    const filtros = descreverFiltros();
+    const cab = () => {
+      doc.setFillColor(90, 26, 42); doc.rect(0, 0, W, 16, "F");
+      if (logo) doc.addImage(logo, "PNG", mg, 2, 12, 12);
+      doc.setTextColor(255); doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+      doc.text(pdfTxt(TITULO), mg + (logo ? 15 : 0), 8.5);
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8.5);
+      doc.text(pdfTxt("4ª Bda C Mec"), mg + (logo ? 15 : 0), 13);
+      doc.text(pdfTxt(`Gerado em ${carimbo()}`), W - mg, 13, { align: "right" });
+      doc.setTextColor(0);
+    };
+    cab();
+    doc.setFontSize(8.5); let y = 21;
+    filtros.forEach(([k, v]) => {
+      doc.setFont("helvetica", "bold"); doc.text(pdfTxt(k + ":"), mg, y);
+      doc.setFont("helvetica", "normal");
+      const ls = doc.splitTextToSize(pdfTxt(v), W - 2 * mg - 22); doc.text(ls, mg + 22, y); y += 4 * ls.length;
+    });
+    const nPms = evs.filter(e => e.pms.length).length;
+    doc.setFont("helvetica", "bold");
+    doc.text(pdfTxt(`${evs.length} evento(s) · ${nPms} PMS · ${new Set(evs.map(e => e.fid)).size} OM`), mg, y); y += 2;
+    const linhas = linhasTabela(evs);
+    doc.autoTable({
+      startY: y + 1, margin: { left: mg, right: mg, top: 20, bottom: 12 },
+      head: [["Dia", "Setor", "OM", "Partido", "Descrição", "Turno", "PMS", "Localização"]],
+      body: linhas.map(r => [r.dia, r.setor, r.om, r.partido, r.txt, r.turno, r.pms, r.local].map(pdfTxt)),
+      styles: { font: "helvetica", fontSize: 7.5, cellPadding: 1.4, valign: "top", lineColor: [222, 219, 210], lineWidth: .15, overflow: "linebreak" },
+      headStyles: { fillColor: [90, 26, 42], textColor: 255, fontStyle: "bold", fontSize: 8 },
+      alternateRowStyles: { fillColor: [248, 247, 243] },
+      columnStyles: { 0: { cellWidth: 21 }, 1: { cellWidth: 48 }, 2: { cellWidth: 34, fontStyle: "bold" }, 3: { cellWidth: 15 },
+        4: { cellWidth: "auto" }, 5: { cellWidth: 12, halign: "center" }, 6: { cellWidth: 14, halign: "center" }, 7: { cellWidth: 36 } },
+      didParseCell: d => {
+        if (d.section !== "body") return;
+        const r = linhas[d.row.index];
+        if (r.temPms) { d.cell.styles.fillColor = [241, 232, 250]; if (d.column.index === 6) { d.cell.styles.textColor = [123, 44, 191]; d.cell.styles.fontStyle = "bold"; } }
+        if (d.column.index === 3) d.cell.styles.textColor = { FADST: [37, 99, 168], FOROP: [192, 57, 43], DIREX: [160, 105, 10] }[partKey(r.partido)] || 0;
+      },
+      didDrawPage: () => { if (doc.internal.getNumberOfPages() > 1) cab(); },
+    });
+    const tot = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= tot; i++) {
+      doc.setPage(i); doc.setFontSize(7.5); doc.setTextColor(110); doc.setFont("helvetica", "normal");
+      doc.text(pdfTxt(`${TITULO} · Linhas em lilás contêm PMS`), mg, H - 5);
+      doc.text(`Página ${i} de ${tot}`, W - mg, H - 5, { align: "right" });
     }
-    b.classList.remove("confirmar"); b.textContent = "Descartar alterações locais";
-    LOCAL = vazioED(); confirmar("Alterações locais descartadas");
-  });
-  addEventListener("beforeunload", ev => { if (pendentes() && S.edicao) { ev.preventDefault(); ev.returnValue = ""; } });
+    doc.save(nomeArq("pdf"));
+    aviso("PDF gerado");
+  }
+  // alternativa offline: tabela numa janela nova + diálogo de impressão ("Salvar como PDF")
+  function imprimirTabela(evs) {
+    const w = open("", "_blank"); if (!w) { aviso("Permita pop-ups para gerar o PDF"); return; }
+    const l = linhasTabela(evs);
+    w.document.write(`<!doctype html><html lang="pt-BR"><meta charset="utf-8"><title>${esc(TITULO)}</title><style>
+      @page{size:A4 landscape;margin:10mm}body{font:10px system-ui,sans-serif;color:#111}h1{font-size:15px;margin:0;color:#5a1a2a}
+      .f{margin:4px 0 8px}table{border-collapse:collapse;width:100%}th{background:#5a1a2a;color:#fff;text-align:left}
+      th,td{border:1px solid #ccc;padding:3px 4px;vertical-align:top}tr.p td{background:#f1e8fa}thead{display:table-header-group}tr{break-inside:avoid}</style>
+      <h1>${esc(TITULO)}</h1><div>4ª Bda C Mec · gerado em ${carimbo()}</div>
+      <div class="f">${descreverFiltros().map(([k, v]) => `<b>${esc(k)}:</b> ${esc(v)}`).join(" &nbsp; ")} &nbsp; <b>${evs.length}</b> evento(s)</div>
+      <table><thead><tr><th>Dia</th><th>Setor</th><th>OM</th><th>Partido</th><th>Descrição</th><th>Turno</th><th>PMS</th><th>Localização</th></tr></thead><tbody>
+      ${l.map(r => `<tr class="${r.temPms ? "p" : ""}">${[r.dia, r.setor, r.om, r.partido, r.txt, r.turno, r.pms, r.local].map(c => `<td>${esc(c).replace(/\n/g, "<br>")}</td>`).join("")}</tr>`).join("")}
+      </tbody></table><script>onload=()=>setTimeout(()=>print(),200)<\/script></html>`);
+    w.document.close();
+  }
+
+  // ---- KML / KMZ ----
+  const xml = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]));
+  const kmlCor = (hex, a = "ff") => a + hex.slice(5, 7) + hex.slice(3, 5) + hex.slice(1, 3);   // #rrggbb → aabbggrr
+  // ano da operação: o primeiro em que o dia da semana da planilha bate com a data
+  const ANO = (() => {
+    const d0 = DIAS[0], m = (d0.data.match(/\d+\s+(\w{3})/) || [])[1], mes = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"].indexOf((m || "").toUpperCase());
+    const sem = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].indexOf(d0.semana), hoje = new Date().getFullYear();
+    if (mes < 0 || sem < 0) return null;
+    for (const a of [hoje, hoje + 1, hoje - 1, hoje + 2, hoje - 2]) if (new Date(a, mes, parseInt(d0.data)).getDay() === sem) return a;
+    return null;
+  })();
+  const isoDia = d => { if (!ANO) return null; const m = ["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"].indexOf(d.data.slice(-3).toUpperCase()); return m < 0 ? null : `${ANO}-${String(m + 1).padStart(2, "0")}-${d.data.slice(0, 2)}`; };
+
+  function gerarKml(evs) {
+    const estilos = Object.entries({ FADST: "#2563a8", FOROP: "#c0392b", DIREX: "#c98a12", OUTRO: "#555555" }).map(([k, c]) => `
+  <Style id="${k}"><IconStyle><color>${kmlCor(c)}</color><scale>1.0</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon></IconStyle><LabelStyle><scale>0.7</scale></LabelStyle><LineStyle><color>${kmlCor(c)}</color><width>3</width></LineStyle></Style>
+  <Style id="${k}_aprox"><IconStyle><color>${kmlCor(c, "aa")}</color><scale>0.9</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/open-diamond.png</href></Icon></IconStyle><LabelStyle><scale>0.6</scale></LabelStyle></Style>`).join("") + `
+  <Style id="PMS"><IconStyle><color>${kmlCor("#7b2cbf")}</color><scale>1.2</scale><Icon><href>http://maps.google.com/mapfiles/kml/shapes/star.png</href></Icon></IconStyle><LabelStyle><scale>0.8</scale></LabelStyle><LineStyle><color>${kmlCor("#7b2cbf")}</color><width>3</width></LineStyle></Style>`;
+    let semLoc = 0, n = 0;
+    const porDia = new Map();
+    evs.forEach(e => {
+      const pts = e.coords.length ? e.coords : e.local && M.locais[e.local] ? [M.locais[e.local]] : null;
+      if (!pts) { semLoc++; return; }
+      const f = FR[e.fid], pk = COR[partKey(f.partido)] ? partKey(f.partido) : "OUTRO", aprox = !e.coords.length;
+      const estilo = e.pms.length ? "PMS" : pk + (aprox ? "_aprox" : "");
+      const coordStr = pts.map(([la, lo]) => `${lo},${la},0`).join(" ");
+      const geo = pts.length > 1 ? `<MultiGeometry><Point><coordinates>${pts[0][1]},${pts[0][0]},0</coordinates></Point><LineString><tessellate>1</tessellate><coordinates>${coordStr}</coordinates></LineString></MultiGeometry>`
+        : `<Point><coordinates>${coordStr}</coordinates></Point>`;
+      const d = DIA[e.dia], iso = isoDia(d);
+      const desc = `<b>${f.nome}</b> (${f.partido})<br>${setorCurto(f.setor)}${setorSub(f.setor) ? " · " + setorSub(f.setor) : ""}<br><b>${d.data}</b> ${d.semana} ${d.relCalc}<hr>${e.txt}`
+        + (e.turno.length ? `<br><b>Turno:</b> ${e.turno.map(t => turnoNome[t]).join(", ")}` : "") + (e.pms.length ? `<br><b>PMS:</b> ${e.pms.join(", ")}` : "")
+        + `<br><b>Localização:</b> ${aprox ? "aproximada – " + e.local : e.prec === "pc" ? "posição do PC" : "coordenada informada"}` + (e.pc ? `<br><i>${e.pc}</i>` : "");
+      const pm = `
+      <Placemark><name>${xml((e.pms.length ? "PMS " + e.pms.join("/") + " · " : "") + f.nome)}</name>${iso ? `<TimeStamp><when>${iso}</when></TimeStamp>` : ""}<styleUrl>#${estilo}</styleUrl>
+        <description><![CDATA[${desc.replace(/]]>/g, "]] >")}]]></description>
+        <ExtendedData><Data name="Dia"><value>${xml(d.data)}</value></Data><Data name="OM"><value>${xml(f.nome)}</value></Data><Data name="Partido"><value>${xml(f.partido)}</value></Data><Data name="Setor"><value>${xml(f.setor)}</value></Data><Data name="Descricao"><value>${xml(e.txt)}</value></Data><Data name="Turno"><value>${xml(e.turno.join("/"))}</value></Data><Data name="PMS"><value>${xml(e.pms.join(", "))}</value></Data><Data name="Precisao"><value>${aprox ? "aproximada" : e.prec}</value></Data></ExtendedData>
+        ${geo}</Placemark>`;
+      if (!porDia.has(e.dia)) porDia.set(e.dia, new Map());
+      const m = porDia.get(e.dia); (m.get(e.fid) || m.set(e.fid, []).get(e.fid)).push(pm); n++;
+    });
+    const pastas = [...porDia].map(([dia, frs]) => { const d = DIA[dia]; return `
+    <Folder><name>${xml(`${d.data} (${d.semana}${d.relCalc ? " · " + d.relCalc : ""})`)}</name>${[...frs].map(([fid, pms]) => `
+     <Folder><name>${xml(FR[fid].nome + " · " + FR[fid].partido)}</name>${pms.join("")}
+     </Folder>`).join("")}
+    </Folder>`; }).join("");
+    const descDoc = descreverFiltros().map(([k, v]) => `${k}: ${v}`).join("\n") + `\nGerado em ${carimbo()}` + (semLoc ? `\n${semLoc} evento(s) sem localização não incluídos.` : "");
+    const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>${xml(TITULO)}</name>
+  <description>${xml(descDoc)}</description>${estilos}${pastas}
+</Document>
+</kml>
+`;
+    return { kml, n, semLoc };
+  }
+
+  // ZIP mínimo (sem compressão) para o KMZ — dispensa bibliotecas externas
+  const CRC_T = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
+  const crc32 = b => { let c = -1; for (let i = 0; i < b.length; i++) c = CRC_T[(c ^ b[i]) & 255] ^ (c >>> 8); return (c ^ -1) >>> 0; };
+  function zipar(arquivos) {
+    const enc = new TextEncoder(), partes = [], central = []; let off = 0;
+    const dt = new Date(), hora = (dt.getHours() << 11) | (dt.getMinutes() << 5) | (dt.getSeconds() >> 1), data = ((dt.getFullYear() - 1980) << 9) | ((dt.getMonth() + 1) << 5) | dt.getDate();
+    arquivos.forEach(({ nome, dados }) => {
+      const nm = enc.encode(nome), crc = crc32(dados), loc = new DataView(new ArrayBuffer(30));
+      [[0, 0x04034b50, 4], [4, 20, 2], [6, 0x0800, 2], [8, 0, 2], [10, hora, 2], [12, data, 2], [14, crc, 4], [18, dados.length, 4], [22, dados.length, 4], [26, nm.length, 2], [28, 0, 2]]
+        .forEach(([p, v, t]) => t === 4 ? loc.setUint32(p, v, true) : loc.setUint16(p, v, true));
+      const cen = new DataView(new ArrayBuffer(46));
+      [[0, 0x02014b50, 4], [4, 20, 2], [6, 20, 2], [8, 0x0800, 2], [10, 0, 2], [12, hora, 2], [14, data, 2], [16, crc, 4], [20, dados.length, 4], [24, dados.length, 4], [28, nm.length, 2], [30, 0, 2], [32, 0, 2], [34, 0, 2], [36, 0, 2], [38, 0, 4], [42, off, 4]]
+        .forEach(([p, v, t]) => t === 4 ? cen.setUint32(p, v, true) : cen.setUint16(p, v, true));
+      partes.push(loc, nm, dados); central.push(cen, nm);
+      off += 30 + nm.length + dados.length;
+    });
+    const tamC = central.reduce((s, x) => s + x.byteLength, 0), fim = new DataView(new ArrayBuffer(22));
+    [[0, 0x06054b50, 4], [4, 0, 2], [6, 0, 2], [8, arquivos.length, 2], [10, arquivos.length, 2], [12, tamC, 4], [16, off, 4], [20, 0, 2]]
+      .forEach(([p, v, t]) => t === 4 ? fim.setUint32(p, v, true) : fim.setUint16(p, v, true));
+    return new Blob([...partes, ...central, fim], { type: "application/vnd.google-earth.kmz" });
+  }
+
+  function exportarKml(evs, kmz) {
+    const { kml, n, semLoc } = gerarKml(evs);
+    if (!n) { aviso("Nenhum evento com localização nos filtros atuais"); return; }
+    const nota = semLoc ? ` (${semLoc} sem localização ficaram de fora)` : "";
+    if (kmz) {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(zipar([{ nome: "doc.kml", dados: new TextEncoder().encode(kml) }]));
+      a.download = nomeArq("kmz"); document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+    } else baixar(nomeArq("kml"), kml, "application/vnd.google-earth.kml+xml");
+    aviso(`${kmz ? "KMZ" : "KML"} gerado com ${n} evento(s)${nota}`);
+  }
 
   // ---------- render ----------
   function render(voar = true) {
@@ -699,7 +613,6 @@
     desenharLista(evs);
     desenharMapa(evs, voar);
     if (S.visao === "matriz") desenharMatriz();
-    resumoEdicao();
     filtroAtivo();
   }
   // no celular: filtros recolhidos e zoom por gesto (libera espaço no mapa)
