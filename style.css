@@ -112,6 +112,7 @@ mark{background:#ffe58a;padding:0 1px;border-radius:2px}
 .sw.pms{background:var(--pms);border-radius:2px;transform:rotate(45deg)}
 .sw.pcpos{border:3px solid var(--fadst);background:#fff}
 .sw.aprox{border:2px dashed var(--oliva);background:rgba(63,74,43,.16)}
+.sw.itn{width:16px;height:0;border-radius:0;border-top:3px dashed var(--fadst);vertical-align:middle}
 
 /* matriz */
 .matriz{position:absolute;inset:0;overflow:auto;background:var(--bg);padding:10px}
@@ -149,6 +150,7 @@ mark{background:#ffe58a;padding:0 1px;border-radius:2px}
 .palco.em-matriz.com-filtro{background:var(--bg)}
 .filtro-nome{font-weight:600;color:var(--oliva);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .filtro-nome::before{content:"OM: ";font-weight:400;color:var(--suave)}
+.filtro-nome.sel-assist::before{content:""}
 #btnLimparFiltro{background:var(--camo-esc);text-shadow:var(--sombra-txt);color:#fff;border-color:var(--oliva);white-space:nowrap;font-weight:600;padding:5px 10px}
 #btnLimparFiltro:hover{filter:brightness(1.15)}
 .om[data-om]{cursor:pointer}
@@ -291,3 +293,6 @@ button.primario{background:var(--camo-esc);text-shadow:var(--sombra-txt);color:#
 .msg a.maplink:hover,.msg a.maplink.ativo{background:var(--camo-esc);color:#fff;text-shadow:var(--sombra-txt)}
 .msg a.maplink svg{width:11px;height:11px;fill:currentColor;vertical-align:-1px;margin-right:3px}
 .menu-exp,.visoes button.ativo{text-shadow:none}
+.msg p.msg-todos{margin-top:8px;padding-top:6px;border-top:1px dashed var(--linha)}
+.msg .verif{display:inline-block;color:#8a4b00;background:#fff3d6;border:1px solid #f0c36d;border-radius:6px;padding:0 5px;font-size:11px;font-weight:600}
+.msg .verif-topo{color:#8a4b00;background:#fff3d6;border:1px solid #f0c36d;border-radius:8px;padding:5px 8px;font-size:12px;font-weight:600;margin-bottom:6px}

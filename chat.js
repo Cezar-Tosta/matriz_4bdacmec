@@ -162,8 +162,39 @@ ${contexto}
     const plano = h.replace(/<[^>]+>/g, "");
     const om = M.fracoes.filter(f => plano.includes(esc(f.nome))).sort((a, b) => b.nome.length - a.nome.length)[0];
     const extra = (dia ? "&dia=" + dia : "") + (om ? "&pref=" + om.id : "");
-    return h.replace(/(-\d{1,2}\.\d{3,})\s*,\s*(-\d{1,3}\.\d{3,})/g, (m, la, lo) => linkMapa(`coord=${la},${lo}${extra}`, m))
-      .replace(reLocal, (m, n) => linkMapa(`local=${encodeURIComponent(n)}`, m));
+    return h.replace(/(-\d{1,2}\.\d{3,})\s*,\s*(-\d{1,3}\.\d{3,})/g, (m, la, lo) => naMatriz([+la, +lo]) ? linkMapa(`coord=${la},${lo}${extra}`, m) : m)
+      .replace(reLocal, (m, n) => linkMapa(`local=${encodeURIComponent(n)}${extra}`, m));
+  }
+
+  // verificação contra a matriz (depois que a resposta termina): marca com ⚠ coordenadas que não existem
+  // na matriz e links de evento cujo dia não bate com o dia escrito na mesma linha
+  const dmsParaDec = (g, m, s) => +g + +m / 60 + +s / 3600;
+  function coordsDoTexto(t) {
+    const out = [];
+    for (const m of t.matchAll(/(-\d{1,2}\.\d{3,})\s*,\s*(-\d{1,3}\.\d{3,})/g)) out.push({ txt: m[0], ll: [+m[1], +m[2]] });
+    for (const m of t.matchAll(/(\d{1,2})\s*°\s*(\d{1,2})\s*['′]\s*([\d.,]+)\s*["″]?\s*S[\s,;-]+(\d{1,3})\s*°\s*(\d{1,2})\s*['′]\s*([\d.,]+)\s*["″]?\s*[OW]/g))
+      out.push({ txt: m[0], ll: [-dmsParaDec(m[1], m[2], m[3].replace(",", ".")), -dmsParaDec(m[4], m[5], m[6].replace(",", "."))] });
+    return out;
+  }
+  const naMatriz = ll => M.eventos.some(e => e.coords.some(c => Math.abs(c[0] - ll[0]) < 3e-3 && Math.abs(c[1] - ll[1]) < 3e-3));
+  function verificar(bolha) {
+    let n = 0;
+    const alerta = (el, msg) => { el.insertAdjacentHTML("beforeend", ` <span class="verif" title="${esc(msg)}">⚠ ${esc(msg)}</span>`); n++; };
+    bolha.querySelectorAll("li, p").forEach(el => {
+      if (el.closest(".msg-todos") || el.querySelector("li")) return;
+      const t = el.textContent;
+      const dia = (t.match(/(\d{2})\s?(NOV|DEZ|OUT)/i) || []).slice(1).join("").toUpperCase();
+      el.querySelectorAll("a.maplink").forEach(a => {
+        const id = new URLSearchParams(a.dataset.mapa).get("evento"), ev = id != null ? M.eventos[+id] : null;
+        if (id != null && !ev) alerta(el, "evento citado não existe na matriz");
+        else if (ev && dia && M.dias.some(d => d.id === dia) && ev.dia !== dia)
+          alerta(el, `na matriz este evento é de ${M.dias.find(d => d.id === ev.dia).data}, não de ${M.dias.find(d => d.id === dia).data}`);
+      });
+      const vistas = new Set();
+      coordsDoTexto(t).forEach(c => { const k = c.ll.map(v => v.toFixed(3)).join(); if (vistas.has(k)) return; vistas.add(k);
+        if (!naMatriz(c.ll)) alerta(el, `coordenada ${c.txt.trim()} não consta na matriz`); });
+    });
+    if (n) bolha.insertAdjacentHTML("afterbegin", `<p class="verif-topo">⚠ A verificação automática encontrou ${n} divergência(s) com a matriz. Confira antes de usar.</p>`);
   }
 
   // markdown simples e seguro (escapa tudo antes)
@@ -251,6 +282,10 @@ ${contexto}
         bolha.innerHTML = md(t); msgsEl.scrollTop = msgsEl.scrollHeight;
       }, emAndamento.signal);
       historico.push({ role: "assistant", content: resp || "(sem resposta)" });
+      verificar(bolha);
+      // várias citações de eventos: botão para ver no mapa só os eventos desta resposta, juntos
+      const ids = [...new Set([...bolha.querySelectorAll("a.maplink")].map(a => new URLSearchParams(a.dataset.mapa).get("evento")).filter(Boolean))];
+      if (ids.length > 1) bolha.insertAdjacentHTML("beforeend", `<p class="msg-todos">${linkMapa("eventos=" + ids.join(","), `Ver no mapa os ${ids.length} eventos desta resposta`)}</p>`);
       if (!resp) bolha.innerHTML = "<p><i>(sem resposta)</i></p>";
     } catch (e) {
       historico.pop(); // pergunta não respondida não entra no histórico
@@ -312,6 +347,7 @@ ${contexto}
       if (q.get("local")) o.local = q.get("local");
       if (q.get("coord")) o.coord = q.get("coord").split(",").map(Number);
       if (q.get("pref")) o.pref = q.get("pref");
+      if (q.get("eventos")) o.eventos = q.get("eventos").split(",");
       if (matchMedia("(max-width:820px)").matches) abrir(false); // no celular o chat cobre o mapa
       window.MATRIZ_APP?.mostrar(o);
       msgsEl.querySelectorAll("a.maplink.ativo").forEach(a => a.classList.remove("ativo")); lk.classList.add("ativo");

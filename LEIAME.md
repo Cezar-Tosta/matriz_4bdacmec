@@ -6,6 +6,7 @@ Sistema web estático (HTML + CSS + JS puro; mapa com Leaflet via CDN).
 - `index.html` – estrutura da página
 - `style.css` – visual
 - `app.js` – lógica (filtros, linha do tempo, mapa, matriz, reprodução)
+  (no mapa, linhas tracejadas = itinerário: ligam as coordenadas citadas num mesmo evento, na cor do partido)
 - `data.js` – dados extraídos da planilha (gerado automaticamente)
 - `chat.js` – assistente (chat) que responde perguntas sobre a matriz usando a API da OpenAI
 - `extras.js` – eventos inseridos à mão; não é sobrescrito pelo script
@@ -44,6 +45,11 @@ quando a informação não existe, sem completar lacunas nem usar conhecimento e
 - A matriz inteira (≈55 mil tokens) vai como contexto a cada pergunta – cerca de US$ 0,003 por pergunta no gpt-5-nano.
 - As respostas trazem botões **🗺** que exibem no mapa o que foi pedido (um evento, um dia, uma ou mais OM, só PMS ou uma
   localidade). No celular, o chat fecha ao clicar para mostrar o mapa.
+- Ao clicar num link de evento, coordenada ou localidade, o mapa mostra **somente** o(s) evento(s) citado(s) na mensagem
+  (faixa "Assistente: N evento(s) da resposta"; ✕ Limpar Filtro volta ao normal). Com 2 ou mais eventos citados, aparece
+  "Ver no mapa os N eventos desta resposta". Links de dia/OM/PMS continuam funcionando como filtros.
+- Verificação automática: cada resposta é conferida com a matriz e ganha ⚠ quando cita coordenada inexistente ou um evento
+  de outro dia. Coordenadas que não existem na matriz não viram link.
 - O nome do modelo não aparece no Assistente; o campo Modelo no cadastro é opcional (em branco = padrão).
 - Precisa de internet. 🗑 inicia nova conversa.
 

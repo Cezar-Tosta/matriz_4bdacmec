@@ -49,7 +49,7 @@
   const S = {
     dia: DIAS[idxD >= 0 ? idxD : 0].id,
     setores: new Set(), partidos: new Set(), turnos: new Set(), fracoes: new Set(),
-    tipo: "all", q: "", foco: null, visao: "mapa",
+    tipo: "all", q: "", foco: null, visao: "mapa", sel: null,
   };
   calcMarcos();
 
@@ -57,6 +57,7 @@
   const frVisivel = f => (!S.setores.size || S.setores.has(f.setor)) && (!S.partidos.size || S.partidos.has(f.partido));
   function passa(e, ignorarDia = false, ignorarFr = false) {
     const f = FR[e.fid];
+    if (S.sel && !S.sel.has(e.id)) return false;
     if (!ignorarDia && S.dia !== "ALL" && e.dia !== S.dia) return false;
     if (!frVisivel(f)) return false;
     if (!ignorarFr && S.fracoes.size && !S.fracoes.has(f.id)) return false;
@@ -117,7 +118,7 @@
   $("#limparFr").addEventListener("click", () => { S.fracoes.clear(); render(); });
   let tBusca; $("#busca").addEventListener("input", ev => { clearTimeout(tBusca); tBusca = setTimeout(() => { S.q = ev.target.value.trim(); render(); }, 180); });
   $("#limparTudo").addEventListener("click", () => {
-    [S.setores, S.partidos, S.turnos, S.fracoes].forEach(s => s.clear()); S.tipo = "all"; S.q = "";
+    [S.setores, S.partidos, S.turnos, S.fracoes].forEach(s => s.clear()); S.tipo = "all"; S.q = ""; S.sel = null;
     document.querySelectorAll(".filtros input[type=checkbox]").forEach(i => i.checked = false);
     document.querySelector('#fTipo input[value=all]').checked = true; $("#busca").value = ""; $("#buscaFr").value = "";
     render();
@@ -157,7 +158,7 @@
         (pontos.get(k) || pontos.set(k, []).get(k)).push(e);
         if (e.coords.length > 1) {
           L.polyline(e.coords, { color: COR[partKey(FR[e.fid].partido)] || "#555", weight: 3, opacity: .75, dashArray: "6 6" })
-            .bindTooltip(FR[e.fid].nome).addTo(camada);
+            .bindTooltip(`${esc(FR[e.fid].nome)} · ${esc(DIA[e.dia].data)}<br><small>Itinerário: liga as coordenadas citadas no evento</small>`).addTo(camada);
           e.coords.forEach(c => limites.push(c));
         }
       } else if (e.local && M.locais[e.local]) {
@@ -274,15 +275,17 @@
   // ---------- filtro por OM (clique no nome) + botão "Limpar Filtro" ----------
   function selecionarOM(fid) { S.fracoes = new Set([fid]); S.foco = null; render(true); }
   function filtroAtivo() {
-    const n = S.fracoes.size;
-    $("#filtroAtivo").hidden = !n;
-    $(".palco").classList.toggle("com-filtro", !!n);
+    const n = S.fracoes.size, ns = S.sel ? S.sel.size : 0;
+    $("#filtroAtivo").hidden = !n && !ns;
+    $(".palco").classList.toggle("com-filtro", !!(n || ns));
+    $("#filtroNome").classList.toggle("sel-assist", !!ns);
+    if (ns) { $("#filtroNome").textContent = `Assistente: ${ns === 1 ? "1 evento" : ns + " eventos"} da resposta`; $("#filtroNome").title = "Mostrando só o que foi citado na mensagem do Assistente"; return; }
     if (!n) return;
     const nomes = [...S.fracoes].map(id => FR[id].nome);
     $("#filtroNome").textContent = n === 1 ? nomes[0] : `${n} OM selecionadas`;
     $("#filtroNome").title = nomes.join(", ");
   }
-  $("#btnLimparFiltro").addEventListener("click", () => { S.fracoes.clear(); render(true); });
+  $("#btnLimparFiltro").addEventListener("click", () => { S.fracoes.clear(); S.sel = null; render(true); });
 
   function focar(id, abrirMapa) {
     S.foco = id;
@@ -618,47 +621,66 @@
   // ---------- API para o assistente (chat.js): links "mapa:" nas respostas ----------
   // o = { evento: id, dia: "20NOV" | "ALL", om: ["f3", ...], pms: true, local: "Aquidauana" }
   function limparFiltros() {
-    [S.setores, S.partidos, S.turnos, S.fracoes].forEach(s => s.clear()); S.tipo = "all"; S.q = "";
+    [S.setores, S.partidos, S.turnos, S.fracoes].forEach(s => s.clear()); S.tipo = "all"; S.q = ""; S.sel = null;
     document.querySelectorAll(".filtros input[type=checkbox]").forEach(i => i.checked = false);
     document.querySelector('#fTipo input[value=all]').checked = true; $("#busca").value = ""; $("#buscaFr").value = "";
   }
+  // seleção do Assistente: o mapa mostra SOMENTE os eventos citados na mensagem do chat (S.sel)
+  // o = { evento: id, eventos: [ids], coord: [lat, lon], local: "Nome", dia: "20NOV" | "ALL", pref: "f3", om: [...], pms: true }
   window.MATRIZ_APP = {
     mostrar(o = {}) {
-      let ev = o.evento != null && o.evento !== "" ? M.eventos[+o.evento] : null;
-      if (o.evento != null && o.evento !== "" && !ev) { aviso("Evento não encontrado na matriz."); return; }
-      // coordenada citada: abre o evento que tem esse ponto (de preferência no dia citado); senão marca o ponto
-      const pt = Array.isArray(o.coord) && o.coord.length === 2 && o.coord.every(Number.isFinite) ? o.coord : null;
-      if (!ev && pt) {
-        const perto = c => Math.abs(c[0] - pt[0]) < 2e-3 && Math.abs(c[1] - pt[1]) < 2e-3;
-        const cands = M.eventos.filter(e => e.coords.some(perto));
-        ev = cands.find(e => e.dia === o.dia && e.fid === o.pref) || cands.find(e => e.fid === o.pref)
-          || cands.find(e => e.dia === o.dia) || cands[0] || null;
-        if (!ev) {
+      const DIA_OK = DIA[o.dia] ? o.dia : null;
+      // entre os candidatos, fica o grupo mais específico: mesmo dia e OM citados > mesma OM > mesmo dia > todos
+      const melhor = cands => [c => c.dia === DIA_OK && c.fid === o.pref, c => c.fid === o.pref, c => c.dia === DIA_OK, () => true]
+        .map(t => cands.filter(t)).find(g => g.length) || [];
+      let sel = null, alvo = null;
+      if (o.evento != null && o.evento !== "") {
+        const ev = M.eventos[+o.evento];
+        if (!ev) { aviso("Evento não encontrado na matriz."); return; }
+        sel = [ev];
+      } else if (o.eventos?.length) {
+        sel = o.eventos.map(i => M.eventos[+i]).filter(Boolean);
+      } else if (Array.isArray(o.coord) && o.coord.length === 2 && o.coord.every(Number.isFinite)) {
+        const pt = o.coord, perto = c => Math.abs(c[0] - pt[0]) < 2e-3 && Math.abs(c[1] - pt[1]) < 2e-3;
+        sel = melhor(M.eventos.filter(e => e.coords.some(perto)));
+        if (!sel.length) {
           if (S.visao !== "mapa") trocarVisao("mapa");
           mapa.flyTo(pt, 12, { duration: .8 });
           L.circleMarker(pt, { radius: 9, color: "#111", weight: 2, fillColor: "#fff", fillOpacity: .9 })
             .bindPopup(`Coordenada citada<br>${pt.map(v => v.toFixed(5)).join(", ")}`).addTo(camada).openPopup();
+          aviso("Nenhum evento da matriz tem esta coordenada.", 5000);
           return;
         }
+        if (DIA_OK && !sel.some(e => e.dia === DIA_OK))
+          alvo = `Atenção: na matriz este ponto${sel[0].fid === o.pref ? ` da ${FR[o.pref].nome}` : ""} aparece em ${[...new Set(sel.map(e => DIA[e.dia].data))].join(", ")}, não em ${DIA[DIA_OK].data}.`;
+      } else if (o.local && M.locais[o.local]) {
+        sel = melhor(M.eventos.filter(e => e.local === o.local && !e.coords.length));
+        if (!sel.length) { if (S.visao !== "mapa") trocarVisao("mapa"); mapa.flyTo(M.locais[o.local], 11, { duration: .8 }); return; }
       }
-      const oms = (o.om || []).filter(id => FR[id]);
-      const local = o.local && M.locais[o.local] ? o.local : null;
       clearInterval(timer); timer = null; $("#btnPlay").innerHTML = `▶<span class="rot"> Reproduzir</span>`;
       limparFiltros();
-      oms.forEach(id => S.fracoes.add(id));
-      if (o.pms) { S.tipo = "pms"; document.querySelector('#fTipo input[value=pms]').checked = true; }
-      S.dia = ev ? ev.dia : o.dia === "ALL" || DIA[o.dia] ? o.dia : oms.length || o.pms ? "ALL" : S.dia;
+      if (sel) {
+        if (!sel.length) { aviso("Nenhum evento para exibir."); return; }
+        S.sel = new Set(sel.map(e => e.id));
+        const dias = [...new Set(sel.map(e => e.dia))];
+        S.dia = dias.length === 1 ? dias[0] : "ALL";
+      } else { // links de conjunto (dia / OM / PMS): continuam sendo filtros
+        (o.om || []).filter(id => FR[id]).forEach(id => S.fracoes.add(id));
+        if (o.pms) { S.tipo = "pms"; document.querySelector('#fTipo input[value=pms]').checked = true; }
+        S.dia = o.dia === "ALL" || DIA_OK ? o.dia : S.fracoes.size || o.pms ? "ALL" : S.dia;
+      }
       S.foco = null;
       if (S.visao !== "mapa") trocarVisao("mapa");
-      render(!ev && !local);
-      if (ev) setTimeout(() => {
-        focar(ev.id, true);
-        if (!marcadorDoEvento.get(ev.id)) aviso("Este evento não tem localização no mapa; ele está destacado na lista.");
-        else if (pt && DIA[o.dia] && ev.dia !== o.dia)
-          aviso(`Atenção: na matriz este ponto${o.pref === ev.fid ? ` da ${FR[ev.fid].nome}` : ""} aparece em ${DIA[ev.dia].data}, não em ${DIA[o.dia].data}.`, 7000);
-      }, 80);
-      else if (local) mapa.flyTo(M.locais[local], 11, { duration: .8 });
-      else if (!M.eventos.some(e => passa(e) && (e.coords.length || (e.local && M.locais[e.local])))) aviso("Nada com localização para exibir no mapa com esta seleção.");
+      const um = sel && sel.length === 1;
+      render(!um); // evento único: o foco faz o voo até ele
+      const temLoc = e => e.coords.length || (e.local && M.locais[e.local]);
+      if (sel) setTimeout(() => {
+        if (sel.length === 1) focar(sel[0].id, true);
+        else { const mk = marcadorDoEvento.get(sel[0].id); if (mk && sel.every(e => marcadorDoEvento.get(e.id) === mk)) mk.openPopup(); }
+        if (!sel.some(temLoc)) aviso(sel.length === 1 ? "Este evento não tem localização no mapa; ele está destacado na lista." : "Estes eventos não têm localização no mapa; estão na lista.");
+        else if (alvo) aviso(alvo, 7000);
+      }, um ? 80 : 900);
+      else if (!M.eventos.some(e => passa(e) && temLoc(e))) aviso("Nada com localização para exibir no mapa com esta seleção.");
     },
   };
 
