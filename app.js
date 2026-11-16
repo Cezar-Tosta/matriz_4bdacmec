@@ -624,8 +624,22 @@
   }
   window.MATRIZ_APP = {
     mostrar(o = {}) {
-      const ev = o.evento != null && o.evento !== "" ? M.eventos[+o.evento] : null;
+      let ev = o.evento != null && o.evento !== "" ? M.eventos[+o.evento] : null;
       if (o.evento != null && o.evento !== "" && !ev) { aviso("Evento não encontrado na matriz."); return; }
+      // coordenada citada: abre o evento que tem esse ponto (de preferência no dia citado); senão marca o ponto
+      const pt = Array.isArray(o.coord) && o.coord.length === 2 && o.coord.every(Number.isFinite) ? o.coord : null;
+      if (!ev && pt) {
+        const perto = c => Math.abs(c[0] - pt[0]) < 2e-3 && Math.abs(c[1] - pt[1]) < 2e-3;
+        const cands = M.eventos.filter(e => e.coords.some(perto));
+        ev = cands.find(e => e.dia === o.dia) || cands[0] || null;
+        if (!ev) {
+          if (S.visao !== "mapa") trocarVisao("mapa");
+          mapa.flyTo(pt, 12, { duration: .8 });
+          L.circleMarker(pt, { radius: 9, color: "#111", weight: 2, fillColor: "#fff", fillOpacity: .9 })
+            .bindPopup(`Coordenada citada<br>${pt.map(v => v.toFixed(5)).join(", ")}`).addTo(camada).openPopup();
+          return;
+        }
+      }
       const oms = (o.om || []).filter(id => FR[id]);
       const local = o.local && M.locais[o.local] ? o.local : null;
       clearInterval(timer); timer = null; $("#btnPlay").innerHTML = `▶<span class="rot"> Reproduzir</span>`;
