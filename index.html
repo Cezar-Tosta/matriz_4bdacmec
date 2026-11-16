@@ -18,11 +18,27 @@
     <span>4ª Bda C Mec · 05 a 29 NOV</span>
     </div>
   </div>
+  <div class="acoes-topo">
+  <button id="btnEditar" class="btn-editar" title="Editar eventos e pontos do mapa">✎<span class="rot"> Editar</span></button>
   <div class="visoes" role="tablist">
     <button class="ativo" data-visao="mapa">Mapa</button>
     <button data-visao="matriz">Matriz</button>
   </div>
+  </div>
 </header>
+
+<section id="barraEd" class="barra-ed" hidden>
+  <strong>Modo edição</strong>
+  <span id="edResumo" class="ed-resumo"></span>
+  <span class="ed-botoes">
+    <button id="edNovo" class="primario">+ Novo evento</button>
+    <button id="edExportar" title="Baixa o arquivo edicoes.js com todas as edições; coloque-o na pasta do sistema para publicar">⬇ Exportar edicoes.js</button>
+    <label class="botao" title="Carrega um edicoes.js (ou .json) exportado por outra pessoa">⬆ Importar<input type="file" id="edImportar" accept=".js,.json" hidden></label>
+    <button id="edCsv" title="Planilha com todos os eventos já com as edições">⬇ CSV</button>
+    <button id="edDescartar" class="secundario">Descartar alterações locais</button>
+  </span>
+  <small class="ed-ajuda">Clique em ✎ num evento (lista ou mapa) para editar · arraste pontos e localidades no mapa para reposicionar.</small>
+</section>
 
 <section class="linha-tempo">
   <div class="controles-tempo">
@@ -49,8 +65,8 @@
         </div>
       </div>
       <div class="grupo"><h4>Turno</h4><div id="fTurno" class="chips"></div></div>
-      <div class="grupo"><h4>Frações <button id="limparFr" class="link">limpar</button></h4>
-        <input id="buscaFr" type="search" placeholder="Filtrar lista de frações…">
+      <div class="grupo"><h4><span>Organizações Militares <span id="nFr" class="nfr"></span></span> <button id="limparFr" class="link">limpar</button></h4>
+        <input id="buscaFr" type="search" placeholder="Filtrar lista de OM…">
         <div id="fFracao" class="lista-fr"></div>
       </div>
       <button id="limparTudo" class="secundario largura">Limpar todos os filtros</button>
@@ -73,9 +89,51 @@
   </section>
 </main>
 
+<div id="escolha" class="escolha" hidden>📍 Clique no mapa para marcar a posição <button id="escolhaCancelar">Cancelar (Esc)</button></div>
+<div id="aviso" class="aviso" role="status" hidden></div>
+
+<dialog id="dlgEd" class="dlg">
+  <form id="fmEd">
+    <h3 id="edTitulo">Editar evento</h3>
+    <div class="ed-orig" id="edOrig" hidden></div>
+    <label>Organização Militar<select id="edFr"></select></label>
+    <label>Dia<select id="edDia"></select></label>
+    <label>Descrição<textarea id="edTxt" rows="4"></textarea></label>
+    <div class="ed-linha">
+      <fieldset><legend>Turno</legend>
+        <label class="in"><input type="checkbox" name="edTurno" value="M"> Manhã</label>
+        <label class="in"><input type="checkbox" name="edTurno" value="T"> Tarde</label>
+        <label class="in"><input type="checkbox" name="edTurno" value="N"> Noite</label>
+      </fieldset>
+      <label>PMS<input id="edPms" placeholder="ex.: 3.2, 4"></label>
+    </div>
+    <button type="button" id="edDetectar" class="link">Detectar turno, PMS e coordenadas a partir da descrição</button>
+    <fieldset><legend>Localização no mapa</legend>
+      <label>Localidade (aproximada)<select id="edLocal"></select></label>
+      <label>Coordenada(s) – têm prioridade sobre a localidade
+        <input id="edCoords" placeholder="-20.4697, -54.6201  ou  20°28'11&quot;S 54°37'12&quot;W  (rota: pontos separados por ;)">
+      </label>
+      <div class="ed-coord-bt">
+        <button type="button" id="edPick">📍 Marcar no mapa</button>
+        <button type="button" id="edLimparC" class="secundario">Limpar coordenada</button>
+      </div>
+      <small id="edPrecInfo" class="suave"></small>
+    </fieldset>
+    <div id="edErro" class="erro" role="alert"></div>
+    <div class="acoes">
+      <button type="button" id="edExcluir" class="perigo">Excluir</button>
+      <button type="button" id="edRestaurar" class="secundario">Restaurar original</button>
+      <span class="esp"></span>
+      <button type="button" id="edCancelar" class="secundario">Cancelar</button>
+      <button type="submit" class="primario">Salvar</button>
+    </div>
+  </form>
+</dialog>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="data.js"></script>
 <script src="extras.js"></script>
+<script src="edicoes.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
