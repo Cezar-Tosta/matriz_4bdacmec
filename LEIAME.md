@@ -46,3 +46,7 @@ quando a informação não existe, sem completar lacunas nem usar conhecimento e
   localidade). No celular, o chat fecha ao clicar para mostrar o mapa.
 - O nome do modelo não aparece no Assistente; o campo Modelo no cadastro é opcional (em branco = padrão).
 - Precisa de internet. 🗑 inicia nova conversa.
+
+## Cache do navegador
+O `index.html` carrega `style.css`, `data.js`, `extras.js`, `app.js` e `chat.js` com `?v=AAAAMMDD…`.
+Ao publicar uma alteração, troque esse número para que os navegadores baixem a versão nova em vez da antiga guardada em cache.

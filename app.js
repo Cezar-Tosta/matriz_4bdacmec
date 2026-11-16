@@ -358,9 +358,9 @@
 
   // ---------- utilitários ----------
   let tAviso;
-  function aviso(msg) {
+  function aviso(msg, ms = 2600) {
     const el = $("#aviso"); el.textContent = msg; el.hidden = false;
-    clearTimeout(tAviso); tAviso = setTimeout(() => el.hidden = true, 2600);
+    clearTimeout(tAviso); tAviso = setTimeout(() => el.hidden = true, ms);
   }
   function baixar(nome, txt, tipo) {
     const a = document.createElement("a");
@@ -631,7 +631,8 @@
       if (!ev && pt) {
         const perto = c => Math.abs(c[0] - pt[0]) < 2e-3 && Math.abs(c[1] - pt[1]) < 2e-3;
         const cands = M.eventos.filter(e => e.coords.some(perto));
-        ev = cands.find(e => e.dia === o.dia) || cands[0] || null;
+        ev = cands.find(e => e.dia === o.dia && e.fid === o.pref) || cands.find(e => e.fid === o.pref)
+          || cands.find(e => e.dia === o.dia) || cands[0] || null;
         if (!ev) {
           if (S.visao !== "mapa") trocarVisao("mapa");
           mapa.flyTo(pt, 12, { duration: .8 });
@@ -653,6 +654,8 @@
       if (ev) setTimeout(() => {
         focar(ev.id, true);
         if (!marcadorDoEvento.get(ev.id)) aviso("Este evento não tem localização no mapa; ele está destacado na lista.");
+        else if (pt && DIA[o.dia] && ev.dia !== o.dia)
+          aviso(`Atenção: na matriz este ponto${o.pref === ev.fid ? ` da ${FR[ev.fid].nome}` : ""} aparece em ${DIA[ev.dia].data}, não em ${DIA[o.dia].data}.`, 7000);
       }, 80);
       else if (local) mapa.flyTo(M.locais[local], 11, { duration: .8 });
       else if (!M.eventos.some(e => passa(e) && (e.coords.length || (e.local && M.locais[e.local])))) aviso("Nada com localização para exibir no mapa com esta seleção.");

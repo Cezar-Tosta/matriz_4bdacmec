@@ -58,6 +58,7 @@ REGRAS OBRIGATÓRIAS:
 1. Responda somente com o que está escrito na matriz. Não use conhecimento externo (doutrina, geografia, siglas, horários, efetivos, equipamentos etc.) nem faça suposições ou deduções que a matriz não diga explicitamente.
 2. Se a pergunta não puder ser respondida com a matriz, ou só em parte, diga: "Não consta na matriz." (e informe apenas a parte que consta).
 3. Não complete lacunas: se um evento não tem turno, local ou PMS, não atribua nenhum.
+3a. Para perguntas sobre um dia, use SOMENTE os eventos listados sob o título daquele dia ({dia=…}); nunca traga dados de outro dia. Copie coordenadas e localidades exatamente do evento citado.
 4. Reproduza a descrição dos eventos o mais fielmente possível ao texto da matriz.
 5. Cite sempre o dia (com o D relativo, quando houver) e a OM de cada informação.
 6. Seja objetivo, em português do Brasil. Use listas curtas e **negrito** para OM, dias e PMS. Para períodos longos, organize por dia.
@@ -157,7 +158,11 @@ ${contexto}
     reLocal ||= new RegExp(`≈\\s*(${Object.keys(M.locais).sort((a, b) => b.length - a.length)
       .map(n => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "g");
     const dia = (h.match(/\b(\d{2})\s?(NOV|DEZ|OUT)\b/i) || []).slice(1).join("").toUpperCase();
-    return h.replace(/(-\d{1,2}\.\d{3,})\s*,\s*(-\d{1,3}\.\d{3,})/g, (m, la, lo) => linkMapa(`coord=${la},${lo}${dia ? "&dia=" + dia : ""}`, m))
+    // OM citada na mesma linha (o nome mais longo encontrado) desempata quando vários eventos têm o mesmo ponto
+    const plano = h.replace(/<[^>]+>/g, "");
+    const om = M.fracoes.filter(f => plano.includes(esc(f.nome))).sort((a, b) => b.nome.length - a.nome.length)[0];
+    const extra = (dia ? "&dia=" + dia : "") + (om ? "&pref=" + om.id : "");
+    return h.replace(/(-\d{1,2}\.\d{3,})\s*,\s*(-\d{1,3}\.\d{3,})/g, (m, la, lo) => linkMapa(`coord=${la},${lo}${extra}`, m))
       .replace(reLocal, (m, n) => linkMapa(`local=${encodeURIComponent(n)}`, m));
   }
 
@@ -192,7 +197,7 @@ ${contexto}
   // ---------- chamada à API (streaming SSE) ----------
   // modelos de raciocínio (gpt-5*, o*) aceitam reasoning_effort e não aceitam temperature;
   // os demais recebem temperature 0 (respostas mais fiéis ao texto)
-  const extras = m => /^(gpt-5|o\d)/i.test(m) ? { reasoning_effort: "low" } : { temperature: 0 };
+  const extras = m => /^(gpt-5|o\d)/i.test(m) ? { reasoning_effort: "medium" } : { temperature: 0 };
   async function chamar(c, mensagens, aoTexto, sinal, semExtras = false) {
     const r = await fetch(c.url + "/chat/completions", {
       method: "POST", signal: sinal,
@@ -306,6 +311,7 @@ ${contexto}
       if (/^(1|true|sim)$/i.test(q.get("pms") || "")) o.pms = true;
       if (q.get("local")) o.local = q.get("local");
       if (q.get("coord")) o.coord = q.get("coord").split(",").map(Number);
+      if (q.get("pref")) o.pref = q.get("pref");
       if (matchMedia("(max-width:820px)").matches) abrir(false); // no celular o chat cobre o mapa
       window.MATRIZ_APP?.mostrar(o);
       msgsEl.querySelectorAll("a.maplink.ativo").forEach(a => a.classList.remove("ativo")); lk.classList.add("ativo");
