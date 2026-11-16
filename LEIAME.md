@@ -7,6 +7,7 @@ Sistema web estático (HTML + CSS + JS puro; mapa com Leaflet via CDN).
 - `style.css` – visual
 - `app.js` – lógica (filtros, linha do tempo, mapa, matriz, reprodução)
 - `data.js` – dados extraídos da planilha (gerado automaticamente)
+- `chat.js` – assistente (chat) que responde perguntas sobre a matriz usando a API da OpenAI
 - `extras.js` – eventos inseridos à mão; não é sobrescrito pelo script
 - `atualizar_dados.py` – regenera o `data.js` a partir da planilha
 - `img/` – brasão da 4ª Bda C Mec (cabeçalho e favicon)
@@ -33,3 +34,12 @@ Exporta **exatamente o que está filtrado na tela** (dia ou "Todos os dias", set
 - **KMZ / KML** – para Google Earth, QGIS, ArcGIS etc. Pastas por dia e por OM, cores por partido, estrela
   para PMS, losango para localização aproximada e data em cada ponto (permite usar a barra de tempo do
   Google Earth). Eventos sem localização entram só no PDF.
+
+## Assistente (botão 💬 Assistente no topo)
+Chat que responde perguntas usando **somente** os dados da matriz (instruído a responder "Não consta na matriz"
+quando a informação não existe, sem completar lacunas nem usar conhecimento externo).
+- Na 1ª vez, clique em ⚙ e cadastre a **chave da API da OpenAI** (Testar → Salvar). A chave fica salva só no navegador.
+- Modelo padrão: `gpt-5-nano` (o mais econômico); pode trocar no cadastro. A URL base aceita qualquer API compatível
+  com `/chat/completions`.
+- A matriz inteira (≈55 mil tokens) vai como contexto a cada pergunta – cerca de US$ 0,003 por pergunta no gpt-5-nano.
+- Precisa de internet. 🗑 inicia nova conversa.
