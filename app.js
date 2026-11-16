@@ -239,7 +239,7 @@
     const porFr = {};
     lista.forEach(e => (porFr[e.fid] ||= []).push(e));
     return `<div class="pop"><h5>${esc(titulo)}</h5>` + Object.entries(porFr).map(([fid, evs]) =>
-      `<b>${esc(FR[fid].nome)}</b> <span class="pc">${esc(FR[fid].partido)}</span><ul>` +
+      `<b class="om" data-om="${fid}" title="Clique para filtrar só esta OM">${esc(FR[fid].nome)}</b> <span class="pc">${esc(FR[fid].partido)}</span><ul>` +
       evs.map(e => `<li>${S.dia === "ALL" ? `<span class="tag dia">${esc(DIA[e.dia].data)}</span> ` : ""}${esc(e.txt)}${e.editado ? ' <span class="tag ed">editado</span>' : ""}${btnEd(e)}</li>`).join("") + "</ul>"
     ).join("") + (lista[0].pc && lista[0].prec === "pc" ? `<div class="pc">${esc(lista[0].pc)}</div>` : "") + extra + "</div>";
   }
@@ -361,14 +361,34 @@
       html += `<div class="bloco"><h3>${esc(g)}</h3>`;
       frs.forEach((lista, fid) => {
         const f = FR[fid];
-        html += `<div class="fr"><h4><span class="pt c-${partKey(f.partido)}">${esc(f.partido)}</span>${esc(f.nome)}</h4>${lista.map(itemHtml).join("")}</div>`;
+        html += `<div class="fr"><h4 class="om" data-om="${fid}" title="Clique para filtrar só esta OM"><span class="pt c-${partKey(f.partido)}">${esc(f.partido)}</span>${esc(f.nome)}</h4>${lista.map(itemHtml).join("")}</div>`;
       });
       html += `</div>`;
     });
     if (evs.length > LIM) html += `<div class="vazio-msg">Mostrando ${LIM} de ${evs.length}. Refine os filtros ou escolha um dia.</div>`;
     $("#eventos").innerHTML = html;
   }
-  $("#eventos").addEventListener("click", ev => { const b = ev.target.closest(".ev"); if (b) focar(+b.dataset.ev, true); });
+  $("#eventos").addEventListener("click", ev => {
+    const om = ev.target.closest("[data-om]"); if (om) { selecionarOM(om.dataset.om); return; }
+    const b = ev.target.closest(".ev"); if (b) focar(+b.dataset.ev, true);
+  });
+  // popup do mapa: nome da OM também filtra
+  document.addEventListener("click", ev => {
+    const om = ev.target.closest(".pop [data-om]"); if (om) { mapa.closePopup(); selecionarOM(om.dataset.om); }
+  });
+
+  // ---------- filtro por OM (clique no nome) + botão "Limpar Filtro" ----------
+  function selecionarOM(fid) { S.fracoes = new Set([fid]); S.foco = null; render(true); }
+  function filtroAtivo() {
+    const n = S.fracoes.size;
+    $("#filtroAtivo").hidden = !n;
+    $(".palco").classList.toggle("com-filtro", !!n);
+    if (!n) return;
+    const nomes = [...S.fracoes].map(id => FR[id].nome);
+    $("#filtroNome").textContent = n === 1 ? nomes[0] : `${n} OM selecionadas`;
+    $("#filtroNome").title = nomes.join(", ");
+  }
+  $("#btnLimparFiltro").addEventListener("click", () => { S.fracoes.clear(); render(true); });
 
   function focar(id, abrirMapa) {
     S.foco = id;
@@ -392,7 +412,7 @@
     let ult = null;
     frs.forEach(f => {
       if (f.setor !== ult) { html += `<tr><td class="nome setor" style="border-left-color:transparent">${esc(setorCurto(f.setor))} · ${esc(setorSub(f.setor))}</td></tr>`; ult = f.setor; }
-      html += `<tr><td class="nome" style="border-left-color:${COR[partKey(f.partido)]}" title="${esc(f.nome)} · ${esc(f.partido)}">${esc(f.nome)}</td>`;
+      html += `<tr><td class="nome ${S.fracoes.has(f.id) ? "sel" : ""}" data-om="${f.id}" style="border-left-color:${COR[partKey(f.partido)]}" title="${esc(f.nome)} · ${esc(f.partido)} — clique para filtrar só esta OM">${esc(f.nome)}</td>`;
       DIAS.forEach(d => {
         const c = cont[f.id + "|" + d.id];
         if (!c) { html += `<td class="cel zero"></td>`; return; }
@@ -404,6 +424,8 @@
     $("#matriz").innerHTML = html + `</tbody></table>`;
   }
   $("#matriz").addEventListener("click", ev => {
+    const om = ev.target.closest("td[data-om]");
+    if (om) { selecionarOM(om.dataset.om); return; }
     const c = ev.target.closest("td.cel:not(.zero)"); if (!c) return;
     S.fracoes = new Set([c.dataset.fr]); trocarVisao("mapa"); irPara(c.dataset.dia);
   });
@@ -678,6 +700,7 @@
     desenharMapa(evs, voar);
     if (S.visao === "matriz") desenharMatriz();
     resumoEdicao();
+    filtroAtivo();
   }
   // no celular: filtros recolhidos e zoom por gesto (libera espaço no mapa)
   if (estreito()) { $(".filtros").open = false; mapa.zoomControl.remove(); }
