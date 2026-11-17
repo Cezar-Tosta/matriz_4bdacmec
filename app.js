@@ -140,13 +140,31 @@
   const camada = L.layerGroup().addTo(mapa);
   const marcadorDoEvento = new Map();
 
-  function popupHtml(lista, titulo) {
+  // botões do Google Maps para pontos com coordenada (abrir o local / traçar rota a partir da posição do usuário)
+  const llTxt = c => c.map(v => (+v).toFixed(6)).join(",");
+  function gmapsHtml(ll, lista) {
+    const q = llTxt(ll);
+    let h = `<div class="gmaps"><span class="gm-coord" title="Coordenada (lat, lon)">📍 ${esc(ll.map(v => (+v).toFixed(5)).join(", "))}</span>`
+      + `<a class="gm-bt" href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Ver no Google Maps</a>`
+      + `<a class="gm-bt rota" href="https://www.google.com/maps/dir/?api=1&destination=${q}" target="_blank" rel="noopener">Como chegar</a>`;
+    // itinerários (evento com várias coordenadas): rota passando por todos os pontos
+    const vistos = new Set();
+    (lista || []).filter(e => e.coords.length > 1).forEach(e => {
+      const k = e.coords.map(llTxt).join("|"); if (vistos.has(k)) return; vistos.add(k);
+      const cs = e.coords.map(llTxt), meio = cs.slice(1, -1);
+      const url = `https://www.google.com/maps/dir/?api=1&origin=${cs[0]}&destination=${cs.at(-1)}${meio.length ? "&waypoints=" + encodeURIComponent(meio.join("|")) : ""}`;
+      h += `<a class="gm-bt itin" href="${url}" target="_blank" rel="noopener" title="${esc(FR[e.fid].nome)} · ${esc(DIA[e.dia].data)}">Itinerário (${cs.length} pontos)</a>`;
+    });
+    return h + "</div>";
+  }
+
+  function popupHtml(lista, titulo, ll) {
     const porFr = {};
     lista.forEach(e => (porFr[e.fid] ||= []).push(e));
     return `<div class="pop"><h5>${esc(titulo)}</h5>` + Object.entries(porFr).map(([fid, evs]) =>
       `<b class="om" data-om="${fid}" title="Clique para filtrar só esta OM">${esc(FR[fid].nome)}</b> <span class="pc">${esc(FR[fid].partido)}</span><ul>` +
       evs.map(e => `<li>${S.dia === "ALL" ? `<span class="tag dia">${esc(DIA[e.dia].data)}</span> ` : ""}${esc(e.txt)}</li>`).join("") + "</ul>"
-    ).join("") + (lista[0].pc && lista[0].prec === "pc" ? `<div class="pc">${esc(lista[0].pc)}</div>` : "") + "</div>";
+    ).join("") + (lista[0].pc && lista[0].prec === "pc" ? `<div class="pc">${esc(lista[0].pc)}</div>` : "") + (ll ? gmapsHtml(ll, lista) : "") + "</div>";
   }
 
   function desenharMapa(evs, voar) {
@@ -185,7 +203,7 @@
       const mk = L.marker(e0.coords[0], {
         icon: L.divIcon({ className: "", html: `<div class="${cls}" style="background:${bg};--cor:${cor}"></div>${lista.length > 1 ? `<span class="mk-n">${lista.length}</span>` : ""}`, iconSize: [16, 16], iconAnchor: [8, 8] }),
         zIndexOffset: temPms ? 500 : 0,
-      }).bindPopup(popupHtml(lista, ePc ? "Posição do PC" : (temPms ? "PMS · " + lista.flatMap(e => e.pms).map(p => "PMS " + p).filter((v, i, a) => a.indexOf(v) === i).join(", ") : "Coordenada informada")), { maxWidth: popW })
+      }).bindPopup(popupHtml(lista, ePc ? "Posição do PC" : (temPms ? "PMS · " + lista.flatMap(e => e.pms).map(p => "PMS " + p).filter((v, i, a) => a.indexOf(v) === i).join(", ") : "Coordenada informada"), e0.coords[0]), { maxWidth: popW })
         .addTo(camada);
       mk.on("click", () => focar(lista[0].id, false));
       lista.forEach(e => marcadorDoEvento.set(e.id, mk));

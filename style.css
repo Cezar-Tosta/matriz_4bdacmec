@@ -104,6 +104,12 @@ mark{background:#ffe58a;padding:0 1px;border-radius:2px}
 .pop ul{margin:0;padding-left:16px}
 .pop li{margin:3px 0}
 .pop .pc{color:var(--suave);font-size:11px}
+.pop .gmaps{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--linha)}
+.pop .gm-coord{flex-basis:100%;font-size:11px;color:var(--suave);font-variant-numeric:tabular-nums;user-select:all}
+.pop .gm-bt{display:inline-block;padding:5px 10px;border-radius:7px;background:var(--oliva);color:#fff!important;text-decoration:none;font-size:12px;font-weight:600;line-height:1.2}
+.pop .gm-bt:hover{filter:brightness(1.15)}
+.pop .gm-bt.rota{background:#1a73e8}
+.pop .gm-bt.itin{background:transparent;color:var(--oliva)!important;border:1px solid var(--oliva)}
 
 .legenda{position:absolute;right:10px;bottom:22px;z-index:500;background:rgba(255,255,255,.95);border-radius:var(--raio);box-shadow:var(--sombra);padding:8px 10px;font-size:11px;display:grid;grid-template-columns:auto auto;gap:3px 12px}
 .legenda div{display:flex;align-items:center;gap:6px}
